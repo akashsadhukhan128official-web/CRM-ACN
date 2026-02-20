@@ -112,13 +112,13 @@ function renderPlans(container) {
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
                 ${window.AppState.plans.map(p => `
-                    <div class="glass-card" style="padding: 24px; border-left: 4px solid var(--acn-blue); transition: transform 0.2s;">
+                    <div class="glass-card ${p.isNew ? 'fade-in-up' : ''}" style="padding: 24px; border-left: 4px solid var(--acn-blue); transition: transform 0.2s;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                             <div>
                                 <h4 style="font-size: 1.1rem; margin-bottom: 4px;">${p.name}</h4>
-                                <p style="color: var(--text-secondary); font-size: 0.875rem;">Validity: ${p.validity} Days | Fiber</p>
+                                <p style="color: var(--text-secondary); font-size: 0.875rem;">${p.speed || ''} | Validity: ${p.validity} Days | ${p.type || 'Fiber'}</p>
                             </div>
-                            <span style="font-size: 1.25rem; font-weight: 700; color: var(--acn-blue);">₹${p.price}</span>
+                            <span style="font-size: 1.25rem; font-weight: 700; color: var(--acn-blue);">₹${p.price.toLocaleString()}</span>
                         </div>
                         <div style="margin-top: 24px; display: flex; gap: 12px;">
                             <button class="glass-button" style="flex: 1; padding: 8px;">Edit</button>
@@ -133,7 +133,88 @@ function renderPlans(container) {
 }
 
 function addPlan() {
-    showToast('Add Plan module initialized', 'success');
+    openModal(`
+        <div style="width: 450px; max-width: 95vw;">
+            <h3 style="margin-bottom: 24px;">Create New Service Plan</h3>
+            <form id="plan-form" style="display: flex; flex-direction: column; gap: 18px;">
+                <div class="form-group">
+                    <label class="modal-label">Plan Name</label>
+                    <input type="text" name="name" placeholder="e.g. 300 Mbps Super" required class="glass-input">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="modal-label">Speed</label>
+                        <input type="text" name="speed" placeholder="e.g. 50 Mbps" required class="glass-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">Connection Type</label>
+                        <select name="type" class="glass-input">
+                            <option>Fiber</option>
+                            <option>Broadband</option>
+                            <option>Wireless</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="modal-label">Price (₹)</label>
+                        <input type="number" name="price" placeholder="Amount" required class="glass-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">Validity (Days)</label>
+                        <input type="number" name="validity" placeholder="30" required class="glass-input">
+                    </div>
+                </div>
+                <div id="plan-error" style="color: #ef4444; font-size: 0.8rem; min-height: 1.2rem;"></div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+                    <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="glass-button primary">Create Plan</button>
+                </div>
+            </form>
+        </div>
+    `);
+
+    const form = document.getElementById('plan-form');
+    const err = document.getElementById('plan-error');
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const data = Object.fromEntries(fd.entries());
+
+        // Validation Logic
+        const price = parseFloat(data.price);
+        const validity = parseInt(data.validity);
+
+        if (window.AppState.plans.some(p => p.name.toLowerCase() === data.name.toLowerCase())) {
+            err.textContent = 'Plan name already exists';
+            return;
+        }
+
+        if (price <= 0) {
+            err.textContent = 'Price must be a positive number';
+            return;
+        }
+
+        if (validity <= 0) {
+            err.textContent = 'Validity must be greater than 0';
+            return;
+        }
+
+        const newPlan = {
+            name: data.name,
+            price: price,
+            validity: validity,
+            speed: data.speed,
+            type: data.type,
+            isNew: true // For animation
+        };
+
+        window.AppState.plans.push(newPlan);
+        showToast('Plan created successfully', 'success');
+        closeModal();
+        renderPlans(document.getElementById('content-area'));
+    });
 }
 
 function renderSettings(container) {
