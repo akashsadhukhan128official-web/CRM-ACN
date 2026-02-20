@@ -41,6 +41,13 @@ function initApp() {
     renderSection('dashboard');
     setupEventListeners();
     setupRippleEffects();
+
+    // Midnight Refresh Check (every 10 minutes)
+    setInterval(() => {
+        updateCustomerStatuses();
+        if (window.AppState.currentSection === 'dashboard') renderSection('dashboard');
+        if (window.AppState.currentSection === 'expiring-soon') renderSection('expiring-soon');
+    }, 600000);
 }
 
 function updateCustomerStatuses() {
@@ -52,6 +59,30 @@ function updateCustomerStatuses() {
             c.status = 'Active';
         }
     });
+}
+
+/**
+ * Utility: Calculate Days Left & Formatting
+ * @param {string} dateStr - Expiry date
+ * @returns {object} { text, color }
+ */
+function getDaysLeft(dateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(dateStr);
+    exp.setHours(0, 0, 0, 0);
+
+    const diffTime = exp - today;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+        return { text: `${diffDays} Day${diffDays > 1 ? 's' : ''} Left`, color: 'var(--acn-orange)' };
+    } else if (diffDays === 0) {
+        return { text: 'Expires Today', color: 'var(--acn-blue)' };
+    } else {
+        const absDays = Math.abs(diffDays);
+        return { text: `Expired ${absDays} Day${absDays > 1 ? 's' : ''} Ago`, color: '#ef4444' };
+    }
 }
 
 // Global Event Listeners

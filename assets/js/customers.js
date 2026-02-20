@@ -23,6 +23,11 @@ function renderCustomersTable(container, options = {}) {
         title = `${filter} Customers`;
     }
 
+    // Sorting: Nearest Expiry first for "expiring" filter
+    if (filter === 'expiring') {
+        displayCustomers.sort((a, b) => new Date(a.expiry) - new Date(b.expiry));
+    }
+
     const tableHTML = `
         <div class="glass-card" style="padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
@@ -47,18 +52,22 @@ function renderCustomersTable(container, options = {}) {
                             <th>Phone</th>
                             <th>Plan</th>
                             <th>Expiry</th>
+                            <th>Days Left</th>
                             <th>Status</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${displayCustomers.map(c => `
+                        ${displayCustomers.map(c => {
+        const days = getDaysLeft(c.expiry);
+        return `
                             <tr data-id="${c.id}">
                                 <td>#${c.id}</td>
                                 <td style="font-weight: 600;">${c.name}</td>
                                 <td>${c.phone}</td>
                                 <td>${c.plan}</td>
                                 <td>${c.expiry}</td>
+                                <td style="color: ${days.color}; font-weight: 600;">${days.text}</td>
                                 <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
                                 <td style="text-align: center;">
                                     <div class="action-pill">
@@ -74,7 +83,8 @@ function renderCustomersTable(container, options = {}) {
                                     </div>
                                 </td>
                             </tr>
-                        `).join('')}
+                        `;
+    }).join('')}
                         ${displayCustomers.length === 0 ? '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">No customers found matching the criteria.</td></tr>' : ''}
                     </tbody>
                 </table>
