@@ -26,9 +26,16 @@ function renderPayments(container, params = {}) {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td>#RC-8821</td><td>Alen Walker</td><td>₹499</td><td>2026-02-18</td><td>UPI</td><td><span class="status-badge status-active">Success</span></td></tr>
-                        <tr><td>#RC-8820</td><td>Michael Ross</td><td>₹1299</td><td>2026-02-17</td><td>Cash</td><td><span class="status-badge status-active">Success</span></td></tr>
-                        ${!isToday ? '<tr><td>#RC-8819</td><td>Jane Smith</td><td>₹499</td><td>2026-02-15</td><td>UPI</td><td><span class="status-badge status-expired">Failed</span></td></tr>' : ''}
+                        ${window.AppState.payments.filter(p => !isToday || p.date === new Date().toISOString().split('T')[0]).map(p => `
+                            <tr>
+                                <td>#${p.id}</td>
+                                <td>${p.customer}</td>
+                                <td>₹${p.amount}</td>
+                                <td>${p.date}</td>
+                                <td>${p.method}</td>
+                                <td><span class="status-badge ${p.status === 'Success' ? 'status-active' : 'status-expired'}">${p.status}</span></td>
+                            </tr>
+                        `).join('')}
                     </tbody>
                 </table>
             </div>
@@ -71,8 +78,28 @@ function collectPayment() {
 
     document.getElementById('payment-form').addEventListener('submit', (e) => {
         e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+
+        const newPayment = {
+            id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
+            customer: data.customer,
+            amount: parseInt(data.amount),
+            date: new Date().toISOString().split('T')[0],
+            method: data.method,
+            status: 'Success'
+        };
+
+        window.AppState.payments.push(newPayment);
         showToast('Payment recorded successfully', 'success');
         closeModal();
+
+        // Refresh Current Section if it's Dashboard or Payments
+        if (window.AppState.currentSection === 'dashboard') {
+            renderSection('dashboard');
+        } else if (window.AppState.currentSection === 'payments') {
+            renderSection('payments');
+        }
     });
 }
 

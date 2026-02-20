@@ -22,6 +22,11 @@ window.AppState = {
         { id: 'S2', name: 'Staff One', role: 'Support', access: 'Read/Write', status: 'Away', password: 'password' },
         { id: 'S3', name: 'Technician Ali', role: 'Technician', access: 'Read Only', status: 'Offline', password: 'password' }
     ],
+    payments: [
+        { id: 'RC-8821', customer: 'Alen Walker', amount: 499, date: new Date().toISOString().split('T')[0], method: 'UPI', status: 'Success' },
+        { id: 'RC-8820', customer: 'Michael Ross', amount: 1299, date: new Date().toISOString().split('T')[0], method: 'Cash', status: 'Success' },
+        { id: 'RC-8819', customer: 'John Doe', amount: 799, date: '2026-02-15', method: 'UPI', status: 'Success' }
+    ],
     currentSection: 'dashboard',
     currentFilter: 'all',
     user: { name: 'Admin User', role: 'Super Admin' }
@@ -32,9 +37,21 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initApp() {
+    updateCustomerStatuses(); // Check expiries on load
     renderSection('dashboard');
     setupEventListeners();
     setupRippleEffects();
+}
+
+function updateCustomerStatuses() {
+    const today = new Date().toISOString().split('T')[0];
+    window.AppState.customers.forEach(c => {
+        if (c.expiry < today && c.status === 'Active') {
+            c.status = 'Expired';
+        } else if (c.expiry >= today && c.status === 'Expired') {
+            c.status = 'Active';
+        }
+    });
 }
 
 // Global Event Listeners

@@ -1,4 +1,18 @@
 function renderDashboard(container) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const thisMonth = todayStr.substring(0, 7);
+
+    // Dynamic Calculations
+    const todayCollection = window.AppState.payments
+        .filter(p => p.date === todayStr && p.status === 'Success')
+        .reduce((sum, p) => sum + p.amount, 0);
+
+    const monthlyCollection = window.AppState.payments
+        .filter(p => p.date.startsWith(thisMonth) && p.status === 'Success')
+        .reduce((sum, p) => sum + p.amount, 0);
+
+    const paymentCountToday = window.AppState.payments.filter(p => p.date === todayStr).length;
+
     const dashboardHTML = `
         <div class="stats-grid">
             <div class="glass-card stat-card" onclick="navigateTo('all-customers')">
@@ -9,7 +23,7 @@ function renderDashboard(container) {
             <div class="glass-card stat-card" onclick="navigateTo('all-customers', { filter: 'Active' })">
                 <div class="stat-label">Active Customers</div>
                 <div class="stat-value" id="active-customers" style="color: var(--acn-blue);">0</div>
-                <div style="color: var(--text-secondary); font-size: 0.75rem;">89.5% Active rate</div>
+                <div style="color: var(--text-secondary); font-size: 0.75rem;">Real-time sync</div>
             </div>
             <div class="glass-card stat-card orange" onclick="navigateTo('all-customers', { filter: 'Expired' })">
                 <div class="stat-label">Expired Customers</div>
@@ -23,13 +37,13 @@ function renderDashboard(container) {
             </div>
             <div class="glass-card stat-card" onclick="navigateTo('reports', { module: 'revenue' })">
                 <div class="stat-label">Monthly Collection</div>
-                <div class="stat-value">₹4.2L</div>
+                <div class="stat-value">₹${(monthlyCollection / 1000).toFixed(1)}K</div>
                 <div style="color: #22c55e; font-size: 0.75rem;">On track</div>
             </div>
             <div class="glass-card stat-card" onclick="navigateTo('payments', { module: 'today' })">
                 <div class="stat-label">Today's Collection</div>
-                <div class="stat-value">₹12,450</div>
-                <div style="color: var(--acn-blue); font-size: 0.75rem;">18 Payments</div>
+                <div class="stat-value">₹${todayCollection.toLocaleString()}</div>
+                <div style="color: var(--acn-blue); font-size: 0.75rem;">${paymentCountToday} Payments</div>
             </div>
         </div>
 
@@ -54,11 +68,18 @@ function renderDashboard(container) {
 }
 
 function animateCounters() {
+    const today = new Date();
+    const sevenDaysLater = new Date();
+    sevenDaysLater.setDate(today.getDate() + 7);
+
     const summary = {
         total: window.AppState.customers.length,
         active: window.AppState.customers.filter(c => c.status === 'Active').length,
         expired: window.AppState.customers.filter(c => c.status === 'Expired').length,
-        expiring: 42 // Mock or calculate
+        expiring: window.AppState.customers.filter(c => {
+            const exp = new Date(c.expiry);
+            return exp >= today && exp <= sevenDaysLater;
+        }).length
     };
 
     const counters = [
@@ -89,13 +110,19 @@ function initCharts() {
     const ctxRevenue = document.getElementById('revenueChart').getContext('2d');
     const ctxStatus = document.getElementById('statusChart').getContext('2d');
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    const thisMonth = todayStr.substring(0, 7);
+    const monthlyCollection = window.AppState.payments
+        .filter(p => p.date.startsWith(thisMonth) && p.status === 'Success')
+        .reduce((sum, p) => sum + p.amount, 0);
+
     new Chart(ctxRevenue, {
         type: 'line',
         data: {
-            labels: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'],
+            labels: ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Current'],
             datasets: [{
                 label: 'Revenue (in ₹)',
-                data: [320000, 350000, 340000, 380000, 410000, 420000],
+                data: [350000, 340000, 380000, 410000, 420000, monthlyCollection],
                 borderColor: '#0B5ED7',
                 backgroundColor: 'rgba(11, 94, 215, 0.1)',
                 fill: true,
@@ -114,13 +141,14 @@ function initCharts() {
 
     const activeCount = window.AppState.customers.filter(c => c.status === 'Active').length;
     const expiredCount = window.AppState.customers.filter(c => c.status === 'Expired').length;
+    const suspendedCount = window.AppState.customers.filter(c => c.status === 'Suspended').length;
 
     new Chart(ctxStatus, {
         type: 'doughnut',
         data: {
             labels: ['Active', 'Expired', 'Suspended'],
             datasets: [{
-                data: [activeCount, expiredCount, 5],
+                data: [activeCount, expiredCount, suspendedCount],
                 backgroundColor: ['#0B5ED7', '#FF6A00', '#64748b'],
                 borderWidth: 0
             }]

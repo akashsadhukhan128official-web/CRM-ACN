@@ -173,6 +173,7 @@ function renderAddCustomer(container) {
         newCust.price = window.AppState.plans.find(p => p.name === newCust.plan).price;
 
         window.AppState.customers.push(newCust);
+        updateCustomerStatuses(); // Check for fresh status
         showToast(`Customer ${newCust.name} added successfully!`, 'success');
         navigateTo('all-customers');
     });
@@ -307,6 +308,7 @@ function editCustomer(id) {
         }
 
         Object.assign(c, data);
+        updateCustomerStatuses(); // Ensure reactive status
         showToast('Customer profile updated successfully', 'success');
         closeModal();
         renderSection('all-customers');
@@ -330,6 +332,7 @@ function confirmDelete(id) {
 
 function deleteCustomer(id) {
     window.AppState.customers = window.AppState.customers.filter(c => c.id !== id);
+    updateCustomerStatuses();
     showToast('Customer record deleted', 'error');
     closeModal();
     renderSection('all-customers');
