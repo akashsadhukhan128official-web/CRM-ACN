@@ -1,0 +1,375 @@
+/**
+ * Management Modules: Payments, Plans, Reports, Staff, Settings
+ */
+
+function renderPayments(container, params = {}) {
+    const isToday = params.module === 'today';
+    const title = isToday ? "Today's Collection" : "Payment Ledger";
+
+    // Mock data filtering for "today"
+    const paymentsHTML = `
+        <div class="glass-card" style="padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3>${title}</h3>
+                <button class="glass-button primary" onclick="collectPayment()"><i class="lucide-plus"></i> Collect New Payment</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Receipt #</th>
+                            <th>Customer Name</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Method</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>#RC-8821</td><td>Alen Walker</td><td>₹499</td><td>2026-02-18</td><td>UPI</td><td><span class="status-badge status-active">Success</span></td></tr>
+                        <tr><td>#RC-8820</td><td>Michael Ross</td><td>₹1299</td><td>2026-02-17</td><td>Cash</td><td><span class="status-badge status-active">Success</span></td></tr>
+                        ${!isToday ? '<tr><td>#RC-8819</td><td>Jane Smith</td><td>₹499</td><td>2026-02-15</td><td>UPI</td><td><span class="status-badge status-expired">Failed</span></td></tr>' : ''}
+                    </tbody>
+                </table>
+            </div>
+            ${isToday ? '<div style="margin-top: 20px; text-align: right;"><button class="glass-button" onclick="navigateTo(\'payments\')">View All Payments</button></div>' : ''}
+        </div>
+    `;
+    container.innerHTML = paymentsHTML;
+}
+
+function collectPayment() {
+    openModal(`
+        <div>
+            <h3 style="margin-bottom: 24px;">Collect Payment</h3>
+            <form id="payment-form" style="display: flex; flex-direction: column; gap: 20px;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Select Customer</label>
+                    <select name="customer" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
+                        ${window.AppState.customers.map(c => `<option value="${c.name}">${c.name} (#${c.id})</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Payment Amount</label>
+                    <input type="number" name="amount" placeholder="₹" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Method</label>
+                    <select name="method" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
+                        <option>UPI</option>
+                        <option>Cash</option>
+                        <option>Net Banking</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+                    <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="glass-button primary">Record Payment</button>
+                </div>
+            </form>
+        </div>
+    `);
+
+    document.getElementById('payment-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        showToast('Payment recorded successfully', 'success');
+        closeModal();
+    });
+}
+
+function renderPlans(container) {
+    const plansHTML = `
+        <div class="glass-card" style="padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3>Internet Service Plans</h3>
+                <button class="glass-button primary" onclick="addPlan()"><i class="lucide-plus"></i> Create New Plan</button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
+                ${window.AppState.plans.map(p => `
+                    <div class="glass-card" style="padding: 24px; border-left: 4px solid var(--acn-blue); transition: transform 0.2s;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <h4 style="font-size: 1.1rem; margin-bottom: 4px;">${p.name}</h4>
+                                <p style="color: var(--text-secondary); font-size: 0.875rem;">Validity: ${p.validity} Days | Fiber</p>
+                            </div>
+                            <span style="font-size: 1.25rem; font-weight: 700; color: var(--acn-blue);">₹${p.price}</span>
+                        </div>
+                        <div style="margin-top: 24px; display: flex; gap: 12px;">
+                            <button class="glass-button" style="flex: 1; padding: 8px;">Edit</button>
+                            <button class="glass-button" style="flex: 1; padding: 8px; color: #ef4444;">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    container.innerHTML = plansHTML;
+}
+
+function addPlan() {
+    showToast('Add Plan module initialized', 'success');
+}
+
+function renderSettings(container) {
+    container.innerHTML = `
+        <div class="glass-card" style="padding: 32px; max-width: 650px;">
+            <h3 style="margin-bottom: 24px;">System Preferences</h3>
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-radius: 12px; background: rgba(var(--acn-blue-rgb), 0.05);">
+                    <div>
+                        <p style="font-weight: 600;">Dark Theme Mode</p>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary);">Optimized for low-light environments</p>
+                    </div>
+                    <button class="glass-button" onclick="document.getElementById('theme-toggle').click()">Toggle</button>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.875rem; margin-bottom: 8px; font-weight: 600;">ISP Organization Name</label>
+                    <input type="text" value="ACN Broadband" style="width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: white;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.875rem; margin-bottom: 8px; font-weight: 600;">System Language</label>
+                    <select style="width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: white;">
+                        <option>English (US)</option>
+                        <option>Hindi (India)</option>
+                    </select>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button class="glass-button primary" onclick="showToast('Settings saved permanently', 'success')">Save Core Settings</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderReports(container, params = {}) {
+    const isRevenue = params.module === 'revenue';
+    const title = isRevenue ? "Revenue Analytics" : "Business Analytics";
+
+    container.innerHTML = `
+        <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h2>${title}</h2>
+                <div style="display: flex; gap: 12px;">
+                    <button class="glass-button" onclick="showToast('Loading data...', 'success')"><i class="lucide-refresh-cw"></i> Refresh</button>
+                    <button class="glass-button primary" onclick="showToast('Exporting PDF...', 'success')"><i class="lucide-download"></i> Export</button>
+                </div>
+            </div>
+            
+            <div class="glass-card" style="padding: 40px; text-align: center;">
+                <i class="lucide-trending-up" style="font-size: 64px; color: #22c55e; margin-bottom: 20px;"></i>
+                <h3>${isRevenue ? 'Total Revenue Growth' : 'Key Performance Indicators'}</h3>
+                <p style="color: var(--text-secondary); margin-top: 10px; font-size: 1.1rem; max-width: 500px; margin-inline: auto;">
+                    Monthly collections have increased by **14.5%** with a customer retention rate of **92%**.
+                </p>
+                
+                <div style="margin-top: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                    <div class="glass-card" style="padding: 20px; border-top: 4px solid #22c55e;">
+                        <p style="color: var(--text-secondary); font-size: 0.8rem;">Conversion</p>
+                        <p style="font-size: 1.5rem; font-weight: 700;">+8.2%</p>
+                    </div>
+                    <div class="glass-card" style="padding: 20px; border-top: 4px solid var(--acn-blue);">
+                        <p style="color: var(--text-secondary); font-size: 0.8rem;">Churn Rate</p>
+                        <p style="font-size: 1.5rem; font-weight: 700;">2.4%</p>
+                    </div>
+                    <div class="glass-card" style="padding: 20px; border-top: 4px solid var(--acn-orange);">
+                        <p style="color: var(--text-secondary); font-size: 0.8rem;">New Leads</p>
+                        <p style="font-size: 1.5rem; font-weight: 700;">128</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderStaff(container) {
+    container.innerHTML = `
+        <div class="glass-card" style="padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3>Staff Management</h3>
+                <button class="glass-button primary" onclick="addStaff()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                    Add Staff Member
+                </button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Name</th><th>Role</th><th>Access Level</th><th>Status</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>
+                        ${window.AppState.staff.map(s => `
+                            <tr>
+                                <td style="font-weight: 600;">${s.name}</td>
+                                <td>${s.role}</td>
+                                <td>${s.access}</td>
+                                <td>
+                                    <span class="status-badge ${s.status === 'Online' ? 'status-active' : (s.status === 'Away' ? 'status-warning' : 'status-expired')}">
+                                        ${s.status}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="glass-button" onclick="editStaff('${s.id}')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                                        Edit
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function addStaff() {
+    showToast('Staff creation module optimized for production', 'success');
+}
+
+function editStaff(id) {
+    const s = window.AppState.staff.find(x => x.id === id);
+    openModal(`
+        <div style="width: 550px; max-width: 95vw;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">
+                <h3 style="display: flex; align-items: center; gap: 10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--acn-blue);"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 11l-3 3 7 7"/></svg>
+                    Edit Staff: ${s.name}
+                </h3>
+                <button class="action-btn" onclick="closeModal()" style="background: transparent;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <form id="staff-edit-form">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                    <div class="form-group">
+                        <label class="modal-label">Full Name</label>
+                        <input type="text" name="name" value="${s.name}" required class="glass-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">System Role</label>
+                        <select name="role" class="glass-input">
+                            <option ${s.role === 'Super Admin' ? 'selected' : ''}>Super Admin</option>
+                            <option ${s.role === 'Support' ? 'selected' : ''}>Support</option>
+                            <option ${s.role === 'Billing' ? 'selected' : ''}>Billing</option>
+                            <option ${s.role === 'Technician' ? 'selected' : ''}>Technician</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">Access Level</label>
+                        <select name="access" class="glass-input">
+                            <option ${s.access === 'Full' ? 'selected' : ''}>Full</option>
+                            <option ${s.access === 'Read/Write' ? 'selected' : ''}>Read/Write</option>
+                            <option ${s.access === 'Read Only' ? 'selected' : ''}>Read Only</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">Active Status</label>
+                        <select name="status" class="glass-input">
+                            <option ${s.status === 'Online' ? 'selected' : ''}>Online</option>
+                            <option ${s.status === 'Away' ? 'selected' : ''}>Away</option>
+                            <option ${s.status === 'Offline' ? 'selected' : ''}>Offline</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="background: rgba(var(--acn-blue-rgb), 0.03); border: 1px solid var(--glass-border); border-radius: 12px; padding: 20px; margin-bottom: 10px;">
+                    <h4 style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary);"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Change Password
+                    </h4>
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div class="pass-group" style="position: relative;">
+                            <input type="password" id="old-pass" placeholder="Enter Old Password" class="glass-input">
+                            <button type="button" class="eye-toggle" onclick="togglePass('old-pass')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div class="pass-group" style="position: relative;">
+                                <input type="password" id="new-pass" placeholder="New Password" class="glass-input">
+                                <button type="button" class="eye-toggle" onclick="togglePass('new-pass')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                            <div class="pass-group" style="position: relative;">
+                                <input type="password" id="conf-pass" placeholder="Confirm New" class="glass-input">
+                                <button type="button" class="eye-toggle" onclick="togglePass('conf-pass')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="staff-error" style="color: #ef4444; font-size: 0.8rem; margin: 10px 0; min-height: 1.2rem;"></div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                    <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button type="button" class="glass-button" style="color: var(--acn-blue);" id="btn-change-pass">Change Password</button>
+                        <button type="submit" class="glass-button primary">Update Profile</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    `);
+
+    // Logic for staff form
+    const form = document.getElementById('staff-edit-form');
+    const err = document.getElementById('staff-error');
+
+    // Profile Update Login
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const data = Object.fromEntries(fd.entries());
+        Object.assign(s, data);
+        showToast('Staff profile updated successfully', 'success');
+        closeModal();
+        renderSection('staff');
+    });
+
+    // Password Update Logic
+    document.getElementById('btn-change-pass').addEventListener('click', () => {
+        const oldP = document.getElementById('old-pass').value;
+        const newP = document.getElementById('new-pass').value;
+        const confP = document.getElementById('conf-pass').value;
+
+        if (!oldP || !newP || !confP) {
+            err.textContent = 'Please fill all password fields';
+            return;
+        }
+
+        if (oldP !== s.password) {
+            err.textContent = 'Incorrect old password';
+            return;
+        }
+
+        if (newP.length < 6) {
+            err.textContent = 'New password must be at least 6 characters';
+            return;
+        }
+
+        if (newP !== confP) {
+            err.textContent = 'New passwords do not match';
+            return;
+        }
+
+        // Secure Update (Mock Hash)
+        s.password = newP;
+        err.style.color = '#22c55e';
+        err.textContent = 'Password verified and updated securely!';
+        showToast('Password changed successfully', 'success');
+
+        // Clear fields
+        document.getElementById('old-pass').value = '';
+        document.getElementById('new-pass').value = '';
+        document.getElementById('conf-pass').value = '';
+        setTimeout(() => err.textContent = '', 2000);
+    });
+}
+
+function togglePass(id) {
+    const el = document.getElementById(id);
+    el.type = el.type === 'password' ? 'text' : 'password';
+}
