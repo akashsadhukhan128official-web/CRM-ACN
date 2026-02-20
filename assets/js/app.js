@@ -38,7 +38,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initApp() {
     updateCustomerStatuses(); // Check expiries on load
-    renderSection('dashboard');
+
+    // Check for existing session
+    const token = localStorage.getItem('acn_auth_token');
+    const lastSection = localStorage.getItem('acn_last_section') || 'dashboard';
+    const lastParamData = localStorage.getItem('acn_last_params');
+    const lastParams = lastParamData ? JSON.parse(lastParamData) : {};
+
+    if (token) {
+        // Authenticated: Hide login overlay and restore view
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) overlay.style.display = 'none';
+        navigateTo(lastSection, lastParams);
+    } else {
+        // Not authenticated: Ensure login is shown
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            overlay.classList.remove('login-hidden');
+        }
+    }
+
     setupEventListeners();
     setupRippleEffects();
 
@@ -107,9 +127,17 @@ function setupEventListeners() {
     if (loginForm) {
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
+
+            // Persistent Session Storage
+            localStorage.setItem('acn_auth_token', 'mock_token_' + Date.now());
+            localStorage.setItem('acn_last_section', 'dashboard');
+
             const overlay = document.getElementById('login-overlay');
             overlay.classList.add('login-hidden');
-            setTimeout(() => overlay.style.display = 'none', 500);
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                navigateTo('dashboard');
+            }, 500);
             showToast('Login Successful', 'success');
         });
     }
@@ -131,9 +159,22 @@ function setupEventListeners() {
  * @param {object} params - Optional state/data for the section (e.g. filter)
  */
 function navigateTo(sectionId, params = {}) {
+    // Auth Guard check on navigation
+    const token = localStorage.getItem('acn_auth_token');
+    if (!token && sectionId !== 'logout') {
+        const overlay = document.getElementById('login-overlay');
+        overlay.style.display = 'flex';
+        overlay.classList.remove('login-hidden');
+        return;
+    }
+
     window.AppState.currentSection = sectionId;
     window.AppState.currentFilter = params.filter || 'all';
     window.AppState.lastParams = params;
+
+    // Persist View State
+    localStorage.setItem('acn_last_section', sectionId);
+    localStorage.setItem('acn_last_params', JSON.stringify(params));
 
     // Update active state in sidebar
     document.querySelectorAll('.nav-link').forEach(l => {
@@ -242,10 +283,17 @@ function showLogoutConfirmation() {
             <p style="color: var(--text-secondary); margin: 10px 0 30px;">Are you sure you want to exit the system?</p>
             <div style="display: flex; gap: 12px; justify-content: center;">
                 <button class="glass-button" onclick="closeModal()">Cancel</button>
-                <button class="glass-button primary" style="background: #ef4444;" onclick="location.reload()">Logout</button>
+                <button class="glass-button primary" style="background: #ef4444;" onclick="logout()">Logout</button>
             </div>
         </div>
     `);
+}
+
+function logout() {
+    localStorage.removeItem('acn_auth_token');
+    localStorage.removeItem('acn_last_section');
+    localStorage.removeItem('acn_last_params');
+    location.reload();
 }
 
 function renderPlaceholder(container, id) {
