@@ -15,38 +15,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Styles -->
     <link rel="stylesheet" href="assets/css/styles.css">
-    <style>
-        /* Re-adding responsive breakpoints that were lost */
-        @media (max-width: 1024px) {
-            .sidebar {
-                width: 80px !important;
-                padding: 16px !important;
-            }
-
-            .logo-container h2,
-            .nav-link span {
-                display: none !important;
-            }
-
-            .main-content {
-                margin-left: 80px !important;
-            }
-
-            .header {
-                left: 80px !important;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .stats-grid {
-                grid-template-columns: 1fr !important;
-            }
-
-            .search-bar {
-                width: 150px !important;
-            }
-        }
-    </style>
 </head>
 
 <body data-theme="light">
@@ -163,10 +131,16 @@
         <main class="main-content">
             <!-- Header -->
             <header class="header">
-                <div class="search-bar">
-                    <i class="lucide-search"
-                        style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
-                    <input type="text" placeholder="Search customers, plans...">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <button id="sidebar-toggle" class="glass-button icon-btn"
+                        style="display: none; border: none; background: transparent;">
+                        <i class="lucide-menu" style="font-size: 24px; color: var(--acn-blue);"></i>
+                    </button>
+                    <div class="search-bar">
+                        <i class="lucide-search"
+                            style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
+                        <input type="text" placeholder="Search customers..." onkeyup="filterTable(this.value)">
+                    </div>
                 </div>
 
                 <div class="header-actions">

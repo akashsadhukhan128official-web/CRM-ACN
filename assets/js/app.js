@@ -189,7 +189,6 @@ function getDaysLeft(dateStr) {
 function setupEventListeners() {
     // Navigation routing via Event Delegation
     document.addEventListener('click', (e) => {
-        // Ensure we catch the click even if it hits the icon inside the link
         const navLink = e.target.closest('.nav-link');
         if (navLink) {
             const section = navLink.getAttribute('data-section');
@@ -201,12 +200,40 @@ function setupEventListeners() {
                 }
                 navigateTo(section);
 
-                // On mobile, you might want to close sidebar here
-                if (window.innerWidth < 1024) {
-                    document.querySelector('.sidebar')?.classList.remove('active');
+                // Close sidebar on mobile after navigation
+                const sidebar = document.querySelector('.sidebar');
+                const overlay = document.querySelector('.sidebar-overlay');
+                if (sidebar?.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                    overlay?.classList.remove('active');
                 }
             }
         }
+    });
+
+    // Mobile Sidebar Toggle
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    const appContainer = document.querySelector('.app-container');
+
+    // Create overlay if not exists
+    let sidebarOverlay = document.querySelector('.sidebar-overlay');
+    if (!sidebarOverlay) {
+        sidebarOverlay = document.createElement('div');
+        sidebarOverlay.className = 'sidebar-overlay';
+        appContainer.appendChild(sidebarOverlay);
+    }
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+            sidebarOverlay.classList.toggle('active');
+        });
+    }
+
+    sidebarOverlay.addEventListener('click', () => {
+        sidebar.classList.remove('active');
+        sidebarOverlay.classList.remove('active');
     });
 
     // Close modal on overlay click
