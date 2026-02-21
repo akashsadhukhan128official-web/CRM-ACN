@@ -508,6 +508,7 @@ tr:hover {
 }
 
 .login-hidden {
+    display: none !important;
     opacity: 0;
     pointer-events: none;
     transform: scale(1.1);

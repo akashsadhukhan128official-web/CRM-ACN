@@ -4,6 +4,7 @@
  */
 import { auth, db } from './firebase-config.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
+import { collection, addDoc, query, where, getDocs, limit } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
 // Global App State
 window.AppState = {
@@ -25,14 +26,16 @@ window.AppState = {
         { id: 'S3', name: 'Technician Ali', role: 'Technician', access: 'Read Only', status: 'Offline', password: 'password' }
     ],
     payments: [
-        { id: 'RC-8821', customer: 'Alen Walker', amount: 499, date: new Date().toISOString().split('T')[0], method: 'UPI', status: 'Success' },
-        { id: 'RC-8820', customer: 'Michael Ross', amount: 1299, date: new Date().toISOString().split('T')[0], method: 'Cash', status: 'Success' },
-        { id: 'RC-8819', customer: 'John Doe', amount: 799, date: '2026-02-15', method: 'UPI', status: 'Success' }
+        { id: 'RC-8821', customer: 'Alen Walker', amount: 499, date: new Date().toISOString().split('T')[0], method: 'UPI', status: 'Paid' },
+        { id: 'RC-8820', customer: 'Michael Ross', amount: 1299, date: new Date().toISOString().split('T')[0], method: 'Cash', status: 'Paid' },
+        { id: 'RC-8819', customer: 'John Doe', amount: 799, date: '2026-02-15', method: 'UPI', status: 'Paid' }
     ],
     currentSection: 'dashboard',
     currentFilter: 'all',
     user: { name: 'Admin User', role: 'Super Admin' },
-    initialized: false
+    initialized: false,
+    isAuthenticated: false,
+    isAuthChecking: true
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,17 +55,21 @@ function initApp() {
         const lastParamData = localStorage.getItem('acn_last_params');
         const lastParams = lastParamData ? JSON.parse(lastParamData) : {};
 
+        window.AppState.isAuthChecking = false;
+
         if (user) {
+            window.AppState.isAuthenticated = true;
             // Authenticated: Hide login and restore view
             if (overlay) overlay.style.display = 'none';
             window.AppState.user = { name: user.email.split('@')[0], role: 'Admin' };
 
-            // If we are on login screen or just starting, go to dashboard or last section
-            if (window.AppState.currentSection === 'login' || !window.AppState.initialized) {
+            // Restore section only once
+            if (!window.AppState.initialized) {
                 window.AppState.initialized = true;
                 navigateTo(lastSection, lastParams);
             }
         } else {
+            window.AppState.isAuthenticated = false;
             // Not authenticated: Show login
             window.AppState.currentSection = 'login';
             if (overlay) {
@@ -85,9 +92,39 @@ function initApp() {
 
 function updateCustomerStatuses() {
     const today = new Date().toISOString().split('T')[0];
-    window.AppState.customers.forEach(c => {
+    window.AppState.customers.forEach(async c => {
         if (c.expiry < today && c.status === 'Active') {
             c.status = 'Expired';
+
+            // Automated Billing: Create "Due" entry if it doesn't exist for this billing cycle (approx 30 days)
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const dateLimit = thirtyDaysAgo.toISOString().split('T')[0];
+
+            const q = query(
+                collection(db, "payments"),
+                where("customer", "==", c.name),
+                where("status", "==", "Due"),
+                where("date", ">=", dateLimit),
+                limit(1)
+            );
+
+            const existing = await getDocs(q);
+            if (existing.empty) {
+                const newDue = {
+                    id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
+                    customer: c.name,
+                    amount: c.price || 0,
+                    date: today,
+                    method: '-',
+                    status: 'Due',
+                    paid: false,
+                    customerId: c.id,
+                    createdAt: new Date().toISOString()
+                };
+                await addDoc(collection(db, "payments"), newDue);
+                console.log(`Automated billing created for ${c.name}`);
+            }
         } else if (c.expiry >= today && c.status === 'Expired') {
             c.status = 'Active';
         }

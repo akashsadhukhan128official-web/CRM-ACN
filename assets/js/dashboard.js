@@ -9,11 +9,11 @@ function renderDashboard(container) {
 
     // Dynamic Calculations
     const todayCollection = window.AppState.payments
-        .filter(p => p.date === todayStr && p.status === 'Success')
+        .filter(p => p.date === todayStr && p.status === 'Paid')
         .reduce((sum, p) => sum + p.amount, 0);
 
     const monthlyCollection = window.AppState.payments
-        .filter(p => p.date.startsWith(thisMonth) && p.status === 'Success')
+        .filter(p => p.date.startsWith(thisMonth) && p.status === 'Paid')
         .reduce((sum, p) => sum + p.amount, 0);
 
     const paymentCountToday = window.AppState.payments.filter(p => p.date === todayStr).length;
@@ -118,7 +118,7 @@ function initCharts() {
     const todayStr = new Date().toISOString().split('T')[0];
     const thisMonth = todayStr.substring(0, 7);
     const monthlyCollection = window.AppState.payments
-        .filter(p => p.date.startsWith(thisMonth) && p.status === 'Success')
+        .filter(p => p.date.startsWith(thisMonth) && p.status === 'Paid')
         .reduce((sum, p) => sum + p.amount, 0);
 
     new Chart(ctxRevenue, {

@@ -19,6 +19,11 @@ window.editPlan = editPlan;
 window.confirmDeletePlan = confirmDeletePlan;
 window.deletePlan = deletePlan;
 window.addStaff = addStaff;
+window.markAsPaid = markAsPaid;
+window.editPayment = editPayment;
+window.deletePayment = deletePayment;
+window.confirmDeletePayment = confirmDeletePayment;
+window.addStaff = addStaff;
 // Real-time listener for Payments
 onSnapshot(query(collection(db, "payments"), orderBy("date", "desc")), (snapshot) => {
     window.AppState.payments = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
@@ -65,6 +70,7 @@ function renderPayments(container, params = {}) {
                             <th>Date</th>
                             <th>Method</th>
                             <th>Status</th>
+                            <th style="text-align: center;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -72,10 +78,29 @@ function renderPayments(container, params = {}) {
                             <tr>
                                 <td>#${p.id}</td>
                                 <td>${p.customer}</td>
-                                <td>₹${p.amount}</td>
+                                <td>₹${(p.amount || 0).toLocaleString()}</td>
                                 <td>${p.date}</td>
                                 <td>${p.method}</td>
-                                <td><span class="status-badge ${p.status === 'Success' ? 'status-active' : 'status-expired'}">${p.status}</span></td>
+                                <td>
+                                    <span class="status-badge ${p.status === 'Paid' ? 'status-active' : 'status-expired'}">
+                                        ${p.status}
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <div class="action-pill">
+                                        ${p.status === 'Due' ? `
+                                            <button class="action-btn view" onclick="markAsPaid('${p.firestoreId}')" title="Mark as Paid" style="color: #22c55e; background: rgba(34,197,94,0.1);">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                            </button>
+                                        ` : ''}
+                                        <button class="action-btn edit" onclick="editPayment('${p.firestoreId}')" title="Edit Entry">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
+                                        </button>
+                                        <button class="action-btn delete" onclick="confirmDeletePayment('${p.firestoreId}')" title="Delete Entry">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -129,17 +154,141 @@ function collectPayment() {
             amount: parseInt(data.amount),
             date: new Date().toISOString().split('T')[0],
             method: data.method,
-            status: 'Success'
+            status: 'Paid',
+            paid: true
         };
 
         try {
-            await addDoc(collection(db, "payments"), newPayment);
+            await addDoc(collection(db, "payments"), {
+                ...newPayment,
+                status: 'Paid',
+                paid: true
+            });
             showToast('Payment recorded successfully', 'success');
             closeModal();
         } catch (error) {
             showToast('Failed to record payment', 'error');
         }
     });
+}
+
+async function markAsPaid(firestoreId) {
+    const p = window.AppState.payments.find(x => x.firestoreId === firestoreId);
+    if (!p) return;
+
+    openModal(`
+        <div style="width: 400px;">
+            <h3 style="margin-bottom: 24px;">Confirm Payment</h3>
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">Set payment details for <b>${p.customer}</b></p>
+            <form id="mark-paid-form" style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="form-group">
+                    <label class="modal-label">Payment Method</label>
+                    <select name="method" class="glass-input">
+                        <option>UPI</option>
+                        <option>Cash</option>
+                        <option>Net Banking</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="modal-label">Date of Payment</label>
+                    <input type="date" name="date" value="${new Date().toISOString().split('T')[0]}" required class="glass-input">
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+                    <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="glass-button primary">Mark as Paid</button>
+                </div>
+            </form>
+        </div>
+    `);
+
+    document.getElementById('mark-paid-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+
+        try {
+            await updateDoc(doc(db, "payments", firestoreId), {
+                status: 'Paid',
+                paid: true,
+                method: data.method,
+                date: data.date
+            });
+            showToast('Status updated to Paid', 'success');
+            closeModal();
+        } catch (error) {
+            showToast('Update failed', 'error');
+        }
+    });
+}
+
+function editPayment(firestoreId) {
+    const p = window.AppState.payments.find(x => x.firestoreId === firestoreId);
+    if (!p) return;
+
+    openModal(`
+        <div style="width: 400px;">
+            <h3 style="margin-bottom: 24px;">Edit Payment Entry</h3>
+            <form id="edit-payment-form" style="display: flex; flex-direction: column; gap: 18px;">
+                <div class="form-group">
+                    <label class="modal-label">Amount (₹)</label>
+                    <input type="number" name="amount" value="${p.amount}" required class="glass-input">
+                </div>
+                <div class="form-group">
+                    <label class="modal-label">Status</label>
+                    <select name="status" class="glass-input">
+                        <option value="Due" ${p.status === 'Due' ? 'selected' : ''}>Due</option>
+                        <option value="Paid" ${p.status === 'Paid' ? 'selected' : ''}>Paid</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+                    <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="glass-button primary">Update Entry</button>
+                </div>
+            </form>
+        </div>
+    `);
+
+    document.getElementById('edit-payment-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+        data.amount = parseInt(data.amount);
+
+        try {
+            await updateDoc(doc(db, "payments", firestoreId), data);
+            showToast('Payment entry updated', 'success');
+            closeModal();
+        } catch (error) {
+            showToast('Update failed', 'error');
+        }
+    });
+}
+
+function confirmDeletePayment(firestoreId) {
+    const p = window.AppState.payments.find(x => x.firestoreId === firestoreId);
+    if (!p) return;
+
+    openModal(`
+        <div style="text-align: center; padding: 10px;">
+            <i class="lucide-trash-2" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
+            <h3>Delete Entry?</h3>
+            <p style="color: var(--text-secondary); margin: 10px 0 30px;">Are you sure you want to delete receipt <b>#${p.id}</b>?</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button class="glass-button" onclick="closeModal()">Cancel</button>
+                <button class="glass-button primary" style="background: #ef4444;" onclick="deletePayment('${firestoreId}')">Delete Entry</button>
+            </div>
+        </div>
+    `);
+}
+
+async function deletePayment(firestoreId) {
+    try {
+        await deleteDoc(doc(db, "payments", firestoreId));
+        showToast('Entry deleted', 'error');
+        closeModal();
+    } catch (error) {
+        showToast('Delete failed', 'error');
+    }
 }
 
 function renderPlans(container) {
