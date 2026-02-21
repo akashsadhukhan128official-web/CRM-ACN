@@ -16,7 +16,11 @@ function renderDashboard(container) {
         .filter(p => p.date.startsWith(thisMonth) && p.status === 'Paid')
         .reduce((sum, p) => sum + p.amount, 0);
 
-    const paymentCountToday = window.AppState.payments.filter(p => p.date === todayStr).length;
+    const duePayments = window.AppState.payments.filter(p => p.status === 'Due');
+    const totalDueAmount = duePayments.reduce((sum, p) => sum + p.amount, 0);
+    const dueCount = [...new Set(duePayments.map(p => p.customer))].length;
+    const topDue = duePayments.slice(0, 3);
+    const moreCount = duePayments.length > 3 ? duePayments.length - 3 : 0;
 
     const dashboardHTML = `
         <div class="stats-grid">
@@ -45,10 +49,21 @@ function renderDashboard(container) {
                 <div class="stat-value">₹${(monthlyCollection / 1000).toFixed(1)}K</div>
                 <div style="color: #22c55e; font-size: 0.75rem;">On track</div>
             </div>
-            <div class="glass-card stat-card" onclick="navigateTo('payments', { module: 'today' })">
-                <div class="stat-label">Today's Collection</div>
-                <div class="stat-value">₹${todayCollection.toLocaleString()}</div>
-                <div style="color: var(--acn-blue); font-size: 0.75rem;">${paymentCountToday} Payments</div>
+            <div class="glass-card stat-card" onclick="navigateTo('payments', { filter: 'Due' })" style="min-height: 160px; display: flex; flex-direction: column;">
+                <div class="stat-label">Total Due Amount</div>
+                <div class="stat-value" style="color: var(--acn-orange);">₹${totalDueAmount.toLocaleString()}</div>
+                <div style="color: var(--acn-orange); font-size: 0.75rem; font-weight: 600; margin-bottom: 12px;">${dueCount} Customers Pending</div>
+                <div style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+                    <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.72rem; color: var(--text-secondary);">
+                        ${topDue.map(p => `
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                <span>${p.customer}</span>
+                                <span style="font-weight: 600;">₹${p.amount}</span>
+                            </li>
+                        `).join('')}
+                        ${moreCount > 0 ? `<li style="font-style: italic; opacity: 0.8; margin-top: 4px;">+${moreCount} more...</li>` : ''}
+                    </ul>
+                </div>
             </div>
         </div>
 
