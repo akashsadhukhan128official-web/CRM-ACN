@@ -87,8 +87,9 @@ function renderCustomersTable(container, options = {}) {
                     </thead>
                     <tbody>
                         ${displayCustomers.map(c => {
-        const days = getDaysLeft(c.expiryDate);
-        const payStatus = c.paymentStatus || (new Date(c.expiryDate) <= new Date() ? 'Due' : 'Paid');
+        const currentExpiry = c.expiryDate || c.expiry || null;
+        const days = getDaysLeft(currentExpiry);
+        const payStatus = c.paymentStatus || (currentExpiry && new Date(currentExpiry) <= new Date() ? 'Due' : 'Paid');
 
         return `
                             <tr data-id="${c.id}">
@@ -96,7 +97,7 @@ function renderCustomersTable(container, options = {}) {
                                 <td style="font-weight: 600;">${c.name}</td>
                                 <td>${c.phone}</td>
                                 <td>${c.plan}</td>
-                                <td>${c.expiryDate}</td>
+                                <td>${currentExpiry || '-'}</td>
                                 <td style="color: ${days.color}; font-weight: 600;">${days.text}</td>
                                 <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
                                 <td>

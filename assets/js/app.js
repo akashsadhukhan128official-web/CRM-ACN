@@ -93,16 +93,28 @@ function initApp() {
 function updateCustomerStatuses() {
     const today = new Date().toISOString().split('T')[0];
     window.AppState.customers.forEach(async c => {
-        if (c.expiryDate < today && c.status === 'Active') {
-            c.status = 'Expired';
+        // Data Migration: Ensure expiryDate and planPrice exist
+        const currentExpiry = c.expiryDate || c.expiry;
+        const currentPrice = c.planPrice || c.price || 0;
 
-            // SSoT: Update customer paymentStatus to Due
-            if (c.paymentStatus !== 'Due') {
-                await updateDoc(doc(db, "customers", c.firestoreId), {
-                    status: 'Expired',
-                    paymentStatus: 'Due'
-                });
-            }
+        let needsUpdate = false;
+        const updateData = {};
+
+        if (!c.expiryDate && c.expiry) {
+            updateData.expiryDate = c.expiry;
+            needsUpdate = true;
+        }
+
+        if (!c.planPrice && (c.price || c.price === 0)) {
+            updateData.planPrice = c.price;
+            needsUpdate = true;
+        }
+
+        if (currentExpiry < today && c.status === 'Active') {
+            c.status = 'Expired';
+            updateData.status = 'Expired';
+            updateData.paymentStatus = 'Due';
+            needsUpdate = true;
 
             // Automated Billing: Create "Due" entry if it doesn't exist for this billing cycle (approx 30 days)
             const thirtyDaysAgo = new Date();
@@ -122,7 +134,7 @@ function updateCustomerStatuses() {
                 const newDue = {
                     id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                     customer: c.name,
-                    amount: c.planPrice || 0,
+                    amount: currentPrice,
                     date: today,
                     method: '-',
                     status: 'Due',
@@ -133,12 +145,14 @@ function updateCustomerStatuses() {
                 await addDoc(collection(db, "payments"), newDue);
                 console.log(`Automated billing created for ${c.name}`);
             }
-        } else if (c.expiryDate >= today && c.status === 'Expired') {
+        } else if (currentExpiry >= today && c.status === 'Expired') {
             c.status = 'Active';
-            // Note: We don't auto-set to Paid because that requires actual payment
-            await updateDoc(doc(db, "customers", c.firestoreId), {
-                status: 'Active'
-            });
+            updateData.status = 'Active';
+            needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+            await updateDoc(doc(db, "customers", c.firestoreId), updateData);
         }
     });
 }
@@ -149,13 +163,17 @@ function updateCustomerStatuses() {
  * @returns {object} { text, color }
  */
 function getDaysLeft(dateStr) {
+    if (!dateStr) return { text: '-', color: 'var(--text-secondary)' };
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const exp = new Date(dateStr);
     exp.setHours(0, 0, 0, 0);
 
+    if (isNaN(exp.getTime())) return { text: '-', color: 'var(--text-secondary)' };
+
     const diffTime = exp - today;
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays > 0) {
         return { text: `${diffDays} Day${diffDays > 1 ? 's' : ''} Left`, color: 'var(--acn-orange)' };
