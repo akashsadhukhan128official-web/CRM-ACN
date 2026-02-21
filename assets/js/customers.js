@@ -88,11 +88,7 @@ function renderCustomersTable(container, options = {}) {
                     <tbody>
                         ${displayCustomers.map(c => {
         const days = getDaysLeft(c.expiry);
-        const lastPayment = [...window.AppState.payments]
-            .filter(p => p.customer === c.name)
-            .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-
-        const payStatus = lastPayment ? lastPayment.status : 'Due';
+        const payStatus = c.paymentStatus || (new Date(c.expiry) <= new Date() ? 'Due' : 'Paid');
 
         return `
                             <tr data-id="${c.id}">
@@ -447,6 +443,11 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
         }
 
         try {
+            // Update customer record with paymentStatus
+            await updateDoc(doc(db, "customers", firestoreId), {
+                paymentStatus: 'Due'
+            });
+
             await addDoc(collection(db, "payments"), {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                 customer: customerName,
@@ -464,6 +465,11 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
         }
     } else if (newStatus === 'Paid') {
         try {
+            // Update customer record with paymentStatus
+            await updateDoc(doc(db, "customers", firestoreId), {
+                paymentStatus: 'Paid'
+            });
+
             // Always create a new Paid entry as per instructions
             await addDoc(collection(db, "payments"), {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,

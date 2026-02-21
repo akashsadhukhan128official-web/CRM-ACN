@@ -16,11 +16,14 @@ function renderDashboard(container) {
         .filter(p => p.date.startsWith(thisMonth) && p.status === 'Paid')
         .reduce((sum, p) => sum + p.amount, 0);
 
-    const duePayments = window.AppState.payments.filter(p => p.status === 'Due');
-    const totalDueAmount = duePayments.reduce((sum, p) => sum + p.amount, 0);
-    const dueCount = [...new Set(duePayments.map(p => p.customer))].length;
-    const topDue = duePayments.slice(0, 3);
-    const moreCount = duePayments.length > 3 ? duePayments.length - 3 : 0;
+    const today = new Date();
+    const dueCustomers = window.AppState.customers.filter(c =>
+        c.paymentStatus === 'Due' || new Date(c.expiry) <= today
+    );
+    const totalDueAmount = dueCustomers.reduce((sum, c) => sum + (c.price || 0), 0);
+    const dueCount = dueCustomers.length;
+    const topDue = dueCustomers.slice(0, 3);
+    const moreCount = dueCustomers.length > 3 ? dueCustomers.length - 3 : 0;
 
     const dashboardHTML = `
         <div class="stats-grid">
@@ -57,8 +60,8 @@ function renderDashboard(container) {
                     <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.72rem; color: var(--text-secondary);">
                         ${topDue.map(p => `
                             <li style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                                <span>${p.customer}</span>
-                                <span style="font-weight: 600;">₹${p.amount}</span>
+                                <span>${p.name}</span>
+                                <span style="font-weight: 600;">₹${p.price || 0}</span>
                             </li>
                         `).join('')}
                         ${moreCount > 0 ? `<li style="font-style: italic; opacity: 0.8; margin-top: 4px;">+${moreCount} more...</li>` : ''}
