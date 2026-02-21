@@ -10,12 +10,10 @@ window.renderCustomersTable = renderCustomersTable;
 window.renderAddCustomer = renderAddCustomer;
 window.filterTable = filterTable;
 window.getStatusClass = getStatusClass;
-window.addCustomer = addCustomer;
 window.viewCustomer = viewCustomer;
 window.editCustomer = editCustomer;
 window.confirmDelete = confirmDelete;
 window.deleteCustomer = deleteCustomer;
-window.saveCustomerProfile = saveCustomerProfile;
 
 // Real-time listener for Customers
 onSnapshot(query(collection(db, "customers"), orderBy("id", "desc")), (snapshot) => {
@@ -197,7 +195,10 @@ function renderAddCustomer(container) {
     [iIn, pSel].forEach(e => e.addEventListener('change', () => {
         if (iIn.value) {
             const d = new Date(iIn.value);
-            d.setDate(d.getDate() + 30);
+            // In a real app, you'd get validity from AppState.plans, but we'll stick to 30 as default
+            const selectedPlan = window.AppState.plans.find(p => p.name === pSel.value);
+            const validity = selectedPlan ? (selectedPlan.validity || 30) : 30;
+            d.setDate(d.getDate() + validity);
             eIn.value = d.toISOString().split('T')[0];
         }
     }));
@@ -205,9 +206,20 @@ function renderAddCustomer(container) {
     document.getElementById('add-customer-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const newCust = Object.fromEntries(fd.entries());
-        newCust.id = (100 + window.AppState.customers.length + 1).toString();
-        newCust.status = 'Active';
+        const data = Object.fromEntries(fd.entries());
+
+        // Find selected plan price
+        const selectedPlan = window.AppState.plans.find(p => p.name === data.plan);
+        const price = selectedPlan ? (selectedPlan.price || 0) : 0;
+
+        const newCust = {
+            ...data,
+            price: price,
+            id: (100 + window.AppState.customers.length + 1).toString(),
+            status: 'Active',
+            createdAt: new Date().toISOString()
+        };
+
         try {
             await addDoc(collection(db, "customers"), newCust);
             showToast(`Customer ${newCust.name} added successfully!`, 'success');
