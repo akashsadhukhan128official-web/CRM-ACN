@@ -1,8 +1,9 @@
 /**
  * Management Modules: Payments, Plans, Reports, Staff, Settings
  */
-import { db } from './firebase-config.js';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
+import { auth, db } from './firebase-config.js';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
+import { createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, signOut } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
 
 // Expose Globals IMMEDIATELY for HTML handlers
 window.renderPayments = renderPayments;
@@ -58,7 +59,7 @@ function renderPayments(container, params = {}) {
         <div class="glass-card" style="padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h3>${title}</h3>
-                <button class="glass-button primary" onclick="collectPayment()"><i class="lucide-plus"></i> Collect New Payment</button>
+                ${isReadOnly() ? '' : `<button class="glass-button primary" onclick="collectPayment()"><i class="lucide-plus"></i> Collect New Payment</button>`}
             </div>
             <div style="overflow-x: auto;">
                 <table>
@@ -88,6 +89,7 @@ function renderPayments(container, params = {}) {
                                 </td>
                                 <td style="text-align: center;">
                                     <div class="action-pill">
+                                        ${isReadOnly() ? `<span style="font-size: 0.75rem; color: var(--text-secondary); opacity: 0.7;">View Only</span>` : `
                                         ${p.status === 'Due' ? `
                                             <button class="action-btn view" onclick="markAsPaid('${p.firestoreId}')" title="Payment Received" style="color: #22c55e; background: rgba(34,197,94,0.1); width: auto; padding: 0 10px; font-size: 0.75rem; gap: 5px;">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -99,7 +101,7 @@ function renderPayments(container, params = {}) {
                                         </button>
                                         <button class="action-btn delete" onclick="confirmDeletePayment('${p.firestoreId}')" title="Delete Entry">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                                        </button>
+                                        </button>`}
                                     </div>
                                 </td>
                             </tr>
@@ -313,7 +315,7 @@ function renderPlans(container) {
         <div class="glass-card" style="padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h3>Internet Service Plans</h3>
-                <button class="glass-button primary" onclick="addPlan()"><i class="lucide-plus"></i> Create New Plan</button>
+                ${isReadOnly() ? '' : `<button class="glass-button primary" onclick="addPlan()"><i class="lucide-plus"></i> Create New Plan</button>`}
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
                 ${window.AppState.plans.map(p => `
@@ -326,8 +328,10 @@ function renderPlans(container) {
                             <span style="font-size: 1.25rem; font-weight: 700; color: var(--acn-blue);">₹${(p.price || 0).toLocaleString()}</span>
                         </div>
                         <div style="margin-top: 24px; display: flex; gap: 12px;">
+                            ${isReadOnly() ? `<span style="font-size: 0.875rem; color: var(--text-secondary); opacity: 0.7;">View Only Mode</span>` : `
                             <button class="glass-button" style="flex: 1; padding: 8px;" onclick="editPlan('${p.firestoreId}')">Edit</button>
                             <button class="glass-button" style="flex: 1; padding: 8px; color: #ef4444;" onclick="confirmDeletePlan('${p.firestoreId}')">Delete</button>
+                            `}
                         </div>
                     </div>
                 `).join('')}
@@ -596,10 +600,11 @@ function renderStaff(container) {
         <div class="glass-card" style="padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h3>Staff Management</h3>
+                ${isReadOnly() ? '' : `
                 <button class="glass-button primary" onclick="addStaff()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
                     Add Staff Member
-                </button>
+                </button>`}
             </div>
             <div style="overflow-x: auto;">
                 <table>
@@ -704,60 +709,66 @@ function addStaff() {
 
     document.getElementById('add-staff-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
         const err = document.getElementById('add-staff-error');
         err.textContent = '';
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
 
         const fd = new FormData(e.target);
         const data = Object.fromEntries(fd.entries());
 
-        // 1. Admin Verification
-        const currentAdmin = window.AppState.staff.find(s => s.access === 'Full'); // Simplified lookup
-        const hashedAdminInput = await hashPassword(data.admin_pass);
-
-        // Check if admin password matches (supporting both hashed and plain for existing data)
-        const adminPassMatch = (data.admin_pass === currentAdmin.password) || (hashedAdminInput === currentAdmin.password);
-
-        if (!adminPassMatch) {
-            err.textContent = 'Incorrect Admin Password';
-            return;
-        }
-
-        // 2. Password Complexity
-        if (data.password.length < 6) {
-            err.textContent = 'New password minimum 6 characters';
-            return;
-        }
-
+        // Basic validation
         if (data.password !== data.confirm_password) {
             err.textContent = 'Confirm password must match';
+            btn.disabled = false; btn.textContent = 'Add Member';
             return;
         }
 
-        // 3. Role Logic
-        let role = data.role_desc;
-        if (data.access === 'Full') role = 'Admin';
-        else if (data.access === 'Read/Write') role = 'Staff';
-
-        // 4. Secure Creation
-        const hashedStaffPass = await hashPassword(data.password);
-        const newStaff = {
-            name: data.name,
-            role: role,
-            access: data.access,
-            password: hashedStaffPass,
-            status: 'Offline',
-            id: 'S' + (window.AppState.staff.length + 1),
-            createdAt: new Date().toISOString()
-        };
+        if (data.password.length < 6) {
+            err.textContent = 'Password must be at least 6 characters';
+            btn.disabled = false; btn.textContent = 'Add Member';
+            return;
+        }
 
         try {
-            await addDoc(collection(db, "staff"), newStaff);
-            showToast('Staff Account Created Successfully', 'success');
+            // 1. Admin Reauthentication
+            const user = auth.currentUser;
+            const credential = EmailAuthProvider.credential(user.email, data.admin_pass);
+            await reauthenticateWithCredential(user, credential);
+
+            // 2. Create Auth User
+            // Logic: fullname (no spaces) + "@acn.com"
+            const email = data.name.toLowerCase().replace(/\s+/g, '') + "@acn.com";
+            const userCredential = await createUserWithEmailAndPassword(auth, email, data.password);
+            const { uid } = userCredential.user;
+
+            // 3. Save to Firestore "staff"
+            const newStaff = {
+                fullName: data.name,
+                role: data.role_code || data.role_desc || 'Staff',
+                accessLevel: data.access,
+                status: "active",
+                email: email,
+                createdAt: serverTimestamp()
+            };
+
+            await setDoc(doc(db, "staff", uid), newStaff);
+
+            showToast(`Staff member ${data.name} added!`, 'success');
             closeModal();
             renderSection('staff');
         } catch (error) {
-            showToast('Failed to add staff', 'error');
-            console.error(error);
+            console.error("Staff creation error:", error);
+            if (error.code === 'auth/wrong-password') {
+                err.textContent = 'Incorrect Admin Password';
+            } else if (error.code === 'auth/email-already-in-use') {
+                err.textContent = 'This name is already registered as staff';
+            } else {
+                err.textContent = 'Failed: ' + error.message;
+            }
+            btn.disabled = false;
+            btn.textContent = 'Add Member';
         }
     });
 }

@@ -3,8 +3,8 @@
  * Handles State, Routing, UI Feedback, and Navigation
  */
 import { auth, db } from './firebase-config.js';
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
-import { collection, addDoc, query, where, getDocs, limit } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
+import { collection, addDoc, query, where, getDocs, limit, doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
 // Global App State
 window.AppState = {
@@ -49,7 +49,7 @@ function initApp() {
     updateCustomerStatuses(); // Check expiries on load
 
     // Firebase Auth Persistence & Initialization Guard
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         const overlay = document.getElementById('login-overlay');
         const lastSection = localStorage.getItem('acn_last_section') || 'dashboard';
         const lastParamData = localStorage.getItem('acn_last_params');
@@ -58,19 +58,49 @@ function initApp() {
         window.AppState.isAuthChecking = false;
 
         if (user) {
-            window.AppState.isAuthenticated = true;
-            // Authenticated: Hide login and restore view
-            if (overlay) overlay.style.display = 'none';
-            window.AppState.user = { name: user.email.split('@')[0], role: 'Admin' };
+            try {
+                // Verify user in "staff" collection
+                const staffDoc = await getDoc(doc(db, "staff", user.uid));
 
-            // Restore section only once
-            if (!window.AppState.initialized) {
-                window.AppState.initialized = true;
-                navigateTo(lastSection, lastParams);
+                if (!staffDoc.exists()) {
+                    // Check if they are the primary admin (fallback for bootstrap)
+                    if (user.email === 'admin@acn.com') {
+                        window.AppState.isAuthenticated = true;
+                        window.AppState.user = {
+                            name: 'Super Admin',
+                            role: 'Admin',
+                            accessLevel: 'Full'
+                        };
+                    } else {
+                        showToast('Access Denied: Not a staff member', 'error');
+                        await signOut(auth);
+                        return;
+                    }
+                } else {
+                    const data = staffDoc.data();
+                    window.AppState.isAuthenticated = true;
+                    window.AppState.user = {
+                        uid: user.uid,
+                        name: data.fullName,
+                        role: data.role,
+                        accessLevel: data.accessLevel
+                    };
+                }
+
+                if (overlay) overlay.style.display = 'none';
+
+                // Restore section only once
+                if (!window.AppState.initialized) {
+                    window.AppState.initialized = true;
+                    navigateTo(lastSection, lastParams);
+                }
+            } catch (error) {
+                console.error("Auth verification failed:", error);
+                showToast('Authentication error', 'error');
+                await signOut(auth);
             }
         } else {
             window.AppState.isAuthenticated = false;
-            // Not authenticated: Show login
             window.AppState.currentSection = 'login';
             if (overlay) {
                 overlay.style.display = 'flex';
@@ -532,6 +562,7 @@ function renderPlaceholder(container, id) {
 }
 
 // Expose Globals for HTML handlers (at the end to ensure all are defined)
+window.isReadOnly = () => window.AppState.user?.accessLevel === "Read Only (Viewer)" || window.AppState.user?.accessLevel === "Read Only";
 window.navigateTo = navigateTo;
 window.renderSection = renderSection;
 window.openModal = openModal;

@@ -3,7 +3,7 @@
  * Handles List, Filter, Add, Edit, Delete, and View
  */
 import { db } from './firebase-config.js';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
+import { collection, onSnapshot, query, where, orderBy, getDocs, updateDoc, doc, deleteDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
 // Expose Globals IMMEDIATELY
 window.renderCustomersTable = renderCustomersTable;
@@ -60,9 +60,10 @@ function renderCustomersTable(container, options = {}) {
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h3>${title}</h3>
                 <div style="display: flex; gap: 12px;">
+                    ${isReadOnly() ? '' : `
                     <button class="glass-button primary" onclick="navigateTo('add-customer')">
                         <i class="lucide-user-plus"></i> Add New
-                    </button>
+                    </button>`}
                     <div class="search-bar" style="width: 250px;">
                         <i class="lucide-search" style="position: absolute; left: 12px; top: 12px; font-size: 16px; color: var(--text-secondary);"></i>
                         <input type="text" placeholder="Search name/phone..." onkeyup="filterTable(this.value)" style="padding-left: 36px; height: 40px;">
@@ -119,12 +120,13 @@ function renderCustomersTable(container, options = {}) {
                                         <button class="action-btn view" onclick="viewCustomer('${c.firestoreId}')" title="View Customer Details">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
                                         </button>
+                                        ${isReadOnly() ? '' : `
                                         <button class="action-btn edit" onclick="editCustomer('${c.firestoreId}')" title="Edit Customer Profile">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
                                         </button>
                                         <button class="action-btn delete" onclick="confirmDelete('${c.firestoreId}')" title="Delete Customer">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                                        </button>
+                                        </button>`}
                                     </div>
                                 </td>
                             </tr>
@@ -425,6 +427,10 @@ async function deleteCustomer(firestoreId) {
 }
 
 async function togglePaymentStatus(customerName, firestoreId, newStatus) {
+    if (isReadOnly()) {
+        showToast('Permission Denied: Read-Only User', 'error');
+        return;
+    }
     const customer = window.AppState.customers.find(c => c.firestoreId === firestoreId);
     if (!customer) return;
 
