@@ -1,6 +1,73 @@
 /**
  * Management Modules: Payments, Plans, Reports, Staff, Settings
  */
+import { db } from './firebase-config.js';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
+
+// Real-time listener for Payments
+onSnapshot(query(collection(db, "payments"), orderBy("date", "desc")), (snapshot) => {
+    window.AppState.payments = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
+    if (window.AppState.currentSection === 'payments' || window.AppState.currentSection === 'dashboard') {
+        renderSection(window.AppState.currentSection);
+    }
+});
+// Expose Globals
+window.renderPayments = renderPayments;
+window.collectPayment = collectPayment;
+window.renderPlans = renderPlans;
+window.addPlan = addPlan;
+window.renderReports = renderReports;
+window.renderStaff = renderStaff;
+window.editStaff = editStaff;
+window.renderSettings = renderSettings;
+window.updateStaffProfile = async (id, e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
+    const staff = window.AppState.staff.find(s => s.id === id);
+    if (!staff || !staff.firestoreId) return;
+    try {
+        await updateDoc(doc(db, "staff", staff.firestoreId), data);
+        showToast('Staff profile updated', 'success');
+        closeModal();
+    } catch (error) {
+        showToast('Update failed', 'error');
+    }
+};
+window.changeStaffPassword = async (id, e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
+    const staff = window.AppState.staff.find(s => s.id === id);
+    if (!staff || !staff.firestoreId) return;
+    if (data.newPassword !== data.confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+    try {
+        await updateDoc(doc(db, "staff", staff.firestoreId), { password: data.newPassword });
+        showToast('Password updated', 'success');
+        closeModal();
+    } catch (error) {
+        showToast('Password update failed', 'error');
+    }
+};
+
+// Real-time listener for Plans
+onSnapshot(collection(db, "plans"), (snapshot) => {
+    window.AppState.plans = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
+    if (window.AppState.currentSection === 'plans') {
+        renderSection('plans');
+    }
+});
+
+// Real-time listener for Staff
+onSnapshot(collection(db, "staff"), (snapshot) => {
+    window.AppState.staff = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
+    if (window.AppState.currentSection === 'staff') {
+        renderSection('staff');
+    }
+});
 
 function renderPayments(container, params = {}) {
     const isToday = params.module === 'today';
@@ -76,7 +143,7 @@ function collectPayment() {
         </div>
     `);
 
-    document.getElementById('payment-form').addEventListener('submit', (e) => {
+    document.getElementById('payment-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const data = Object.fromEntries(fd.entries());
@@ -90,15 +157,12 @@ function collectPayment() {
             status: 'Success'
         };
 
-        window.AppState.payments.push(newPayment);
-        showToast('Payment recorded successfully', 'success');
-        closeModal();
-
-        // Refresh Current Section if it's Dashboard or Payments
-        if (window.AppState.currentSection === 'dashboard') {
-            renderSection('dashboard');
-        } else if (window.AppState.currentSection === 'payments') {
-            renderSection('payments');
+        try {
+            await addDoc(collection(db, "payments"), newPayment);
+            showToast('Payment recorded successfully', 'success');
+            closeModal();
+        } catch (error) {
+            showToast('Failed to record payment', 'error');
         }
     });
 }
@@ -177,7 +241,7 @@ function addPlan() {
     const form = document.getElementById('plan-form');
     const err = document.getElementById('plan-error');
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
         const data = Object.fromEntries(fd.entries());
@@ -206,14 +270,16 @@ function addPlan() {
             price: price,
             validity: validity,
             speed: data.speed,
-            type: data.type,
-            isNew: true // For animation
+            type: data.type
         };
 
-        window.AppState.plans.push(newPlan);
-        showToast('Plan created successfully', 'success');
-        closeModal();
-        renderPlans(document.getElementById('content-area'));
+        try {
+            await addDoc(collection(db, "plans"), newPlan);
+            showToast('Plan created successfully', 'success');
+            closeModal();
+        } catch (error) {
+            showToast('Failed to save plan', 'error');
+        }
     });
 }
 

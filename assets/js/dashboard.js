@@ -159,3 +159,8 @@ function initCharts() {
         }
     });
 }
+
+// Expose Globals
+window.renderDashboard = renderDashboard;
+window.animateCounters = animateCounters;
+window.initCharts = initCharts;

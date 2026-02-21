@@ -2,6 +2,22 @@
  * Customer Management Module
  * Handles List, Filter, Add, Edit, Delete, and View
  */
+import { db } from './firebase-config.js';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
+
+// Real-time listener for Customers
+onSnapshot(query(collection(db, "customers"), orderBy("id", "desc")), (snapshot) => {
+    window.AppState.customers = snapshot.docs.map(doc => ({
+        firestoreId: doc.id,
+        ...doc.data()
+    }));
+    // Trigger re-render if we are in customers or dashboard
+    if (window.AppState.currentSection === 'all-customers' ||
+        window.AppState.currentSection.includes('customers') ||
+        window.AppState.currentSection === 'dashboard') {
+        renderSection(window.AppState.currentSection);
+    }
+});
 
 function renderCustomersTable(container, options = {}) {
     const filter = options.filter || window.AppState.currentFilter || 'all';
@@ -180,12 +196,14 @@ function renderAddCustomer(container) {
         const newCust = Object.fromEntries(fd.entries());
         newCust.id = (100 + window.AppState.customers.length + 1).toString();
         newCust.status = 'Active';
-        newCust.price = window.AppState.plans.find(p => p.name === newCust.plan).price;
-
-        window.AppState.customers.push(newCust);
-        updateCustomerStatuses(); // Check for fresh status
-        showToast(`Customer ${newCust.name} added successfully!`, 'success');
-        navigateTo('all-customers');
+        try {
+            await addDoc(collection(db, "customers"), newCust);
+            showToast(`Customer ${newCust.name} added successfully!`, 'success');
+            navigateTo('all-customers');
+        } catch (error) {
+            showToast('Failed to add customer to database', 'error');
+            console.error(error);
+        }
     });
 }
 
@@ -316,12 +334,16 @@ function editCustomer(id) {
         } else if (data.status === 'Expired') {
             data.status = 'Active'; // Reactivate if date moved to future
         }
-
-        Object.assign(c, data);
-        updateCustomerStatuses(); // Ensure reactive status
-        showToast('Customer profile updated successfully', 'success');
-        closeModal();
-        renderSection('all-customers');
+        const firestoreId = c.firestoreId;
+        try {
+            const customerRef = doc(db, "customers", firestoreId);
+            await updateDoc(customerRef, data);
+            showToast('Customer profile updated successfully', 'success');
+            closeModal();
+            renderSection('all-customers');
+        } catch (error) {
+            showToast('Update failed', 'error');
+        }
     });
 }
 
@@ -340,10 +362,27 @@ function confirmDelete(id) {
     `);
 }
 
-function deleteCustomer(id) {
-    window.AppState.customers = window.AppState.customers.filter(c => c.id !== id);
-    updateCustomerStatuses();
-    showToast('Customer record deleted', 'error');
-    closeModal();
-    renderSection('all-customers');
+async function deleteCustomer(id) {
+    const c = window.AppState.customers.find(cust => cust.id === id);
+    if (!c || !c.firestoreId) return;
+
+    try {
+        await deleteDoc(doc(db, "customers", c.firestoreId));
+        showToast('Customer record deleted', 'error');
+        closeModal();
+        renderSection('all-customers');
+    } catch (error) {
+        showToast('Deletion failed', 'error');
+    }
 }
+
+// Expose Globals
+window.renderCustomersTable = renderCustomersTable;
+window.filterTable = filterTable;
+window.getStatusClass = getStatusClass;
+window.addCustomer = addCustomer;
+window.viewCustomer = viewCustomer;
+window.editCustomer = editCustomer;
+window.confirmDelete = confirmDelete;
+window.deleteCustomer = deleteCustomer;
+window.saveCustomerProfile = saveCustomerProfile;

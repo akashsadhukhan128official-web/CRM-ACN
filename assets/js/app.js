@@ -2,6 +2,8 @@
  * ACN Broadband CRM - Core App Engine
  * Handles State, Routing, UI Feedback, and Navigation
  */
+import { auth, db } from './firebase-config.js';
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
 
 // Global App State
 window.AppState = {
@@ -39,25 +41,26 @@ document.addEventListener('DOMContentLoaded', () => {
 function initApp() {
     updateCustomerStatuses(); // Check expiries on load
 
-    // Check for existing session
-    const token = localStorage.getItem('acn_auth_token');
-    const lastSection = localStorage.getItem('acn_last_section') || 'dashboard';
-    const lastParamData = localStorage.getItem('acn_last_params');
-    const lastParams = lastParamData ? JSON.parse(lastParamData) : {};
+    // Firebase Auth Persistence
+    onAuthStateChanged(auth, (user) => {
+        const overlay = document.getElementById('login-overlay');
+        const lastSection = localStorage.getItem('acn_last_section') || 'dashboard';
+        const lastParamData = localStorage.getItem('acn_last_params');
+        const lastParams = lastParamData ? JSON.parse(lastParamData) : {};
 
-    if (token) {
-        // Authenticated: Hide login overlay and restore view
-        const overlay = document.getElementById('login-overlay');
-        if (overlay) overlay.style.display = 'none';
-        navigateTo(lastSection, lastParams);
-    } else {
-        // Not authenticated: Ensure login is shown
-        const overlay = document.getElementById('login-overlay');
-        if (overlay) {
-            overlay.style.display = 'flex';
-            overlay.classList.remove('login-hidden');
+        if (user) {
+            // Authenticated: Hide login and restore view
+            if (overlay) overlay.style.display = 'none';
+            window.AppState.user = { name: user.email.split('@')[0], role: 'Admin' };
+            navigateTo(lastSection, lastParams);
+        } else {
+            // Not authenticated: Show login
+            if (overlay) {
+                overlay.style.display = 'flex';
+                overlay.classList.remove('login-hidden');
+            }
         }
-    }
+    });
 
     setupEventListeners();
     setupRippleEffects();
@@ -125,20 +128,20 @@ function setupEventListeners() {
     // Login logic
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const email = loginForm.querySelector('input[type="text"]').value;
+            const password = loginForm.querySelector('input[type="password"]').value;
 
-            // Persistent Session Storage
-            localStorage.setItem('acn_auth_token', 'mock_token_' + Date.now());
-            localStorage.setItem('acn_last_section', 'dashboard');
-
-            const overlay = document.getElementById('login-overlay');
-            overlay.classList.add('login-hidden');
-            setTimeout(() => {
-                overlay.style.display = 'none';
-                navigateTo('dashboard');
-            }, 500);
-            showToast('Login Successful', 'success');
+            try {
+                // For simplicity assuming email is admin@acn.com or similar if user only provides username
+                const loginEmail = email.includes('@') ? email : `${email}@acn.com`;
+                await signInWithEmailAndPassword(auth, loginEmail, password);
+                showToast('Login Successful', 'success');
+            } catch (error) {
+                showToast('Invalid credentials or network error', 'error');
+                console.error(error);
+            }
         });
     }
 
@@ -160,11 +163,13 @@ function setupEventListeners() {
  */
 function navigateTo(sectionId, params = {}) {
     // Auth Guard check on navigation
-    const token = localStorage.getItem('acn_auth_token');
-    if (!token && sectionId !== 'logout') {
+    const user = auth.currentUser;
+    if (!user && sectionId !== 'logout') {
         const overlay = document.getElementById('login-overlay');
-        overlay.style.display = 'flex';
-        overlay.classList.remove('login-hidden');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            overlay.classList.remove('login-hidden');
+        }
         return;
     }
 
@@ -289,12 +294,25 @@ function showLogoutConfirmation() {
     `);
 }
 
-function logout() {
-    localStorage.removeItem('acn_auth_token');
-    localStorage.removeItem('acn_last_section');
-    localStorage.removeItem('acn_last_params');
-    location.reload();
+async function logout() {
+    try {
+        await signOut(auth);
+        localStorage.removeItem('acn_last_section');
+        localStorage.removeItem('acn_last_params');
+        location.reload();
+    } catch (error) {
+        showToast('Logout failed', 'error');
+    }
 }
+
+// Expose Globals for HTML handlers
+window.navigateTo = navigateTo;
+window.renderSection = renderSection;
+window.closeModal = closeModal;
+window.showLogoutConfirmation = showLogoutConfirmation;
+window.logout = logout;
+window.showToast = showToast;
+window.getDaysLeft = getDaysLeft;
 
 function renderPlaceholder(container, id) {
     container.innerHTML = `
