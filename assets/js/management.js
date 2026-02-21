@@ -160,6 +160,14 @@ function collectPayment() {
         };
 
         try {
+            // Find customer to update their status
+            const customer = window.AppState.customers.find(c => c.name === data.customer);
+            if (customer && customer.firestoreId) {
+                await updateDoc(doc(db, "customers", customer.firestoreId), {
+                    paymentStatus: 'Paid'
+                });
+            }
+
             await addDoc(collection(db, "payments"), {
                 ...newPayment,
                 status: 'Paid',
@@ -208,6 +216,14 @@ async function markAsPaid(firestoreId) {
         const data = Object.fromEntries(fd.entries());
 
         try {
+            // Find customer to update their status
+            const customer = window.AppState.customers.find(c => c.name === p.customer);
+            if (customer && customer.firestoreId) {
+                await updateDoc(doc(db, "customers", customer.firestoreId), {
+                    paymentStatus: 'Paid'
+                });
+            }
+
             await updateDoc(doc(db, "payments", firestoreId), {
                 status: 'Paid',
                 paid: true,

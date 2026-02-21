@@ -18,9 +18,9 @@ function renderDashboard(container) {
 
     const today = new Date();
     const dueCustomers = window.AppState.customers.filter(c =>
-        c.paymentStatus === 'Due' || new Date(c.expiry) <= today
+        c.paymentStatus === 'Due' || new Date(c.expiryDate) <= today
     );
-    const totalDueAmount = dueCustomers.reduce((sum, c) => sum + (c.price || 0), 0);
+    const totalDueAmount = dueCustomers.reduce((sum, c) => sum + (c.planPrice || 0), 0);
     const dueCount = dueCustomers.length;
     const topDue = dueCustomers.slice(0, 3);
     const moreCount = dueCustomers.length > 3 ? dueCustomers.length - 3 : 0;
@@ -61,7 +61,7 @@ function renderDashboard(container) {
                         ${topDue.map(p => `
                             <li style="display: flex; justify-content: space-between; margin-bottom: 2px;">
                                 <span>${p.name}</span>
-                                <span style="font-weight: 600;">₹${p.price || 0}</span>
+                                <span style="font-weight: 600;">₹${p.planPrice || 0}</span>
                             </li>
                         `).join('')}
                         ${moreCount > 0 ? `<li style="font-style: italic; opacity: 0.8; margin-top: 4px;">+${moreCount} more...</li>` : ''}

@@ -93,8 +93,16 @@ function initApp() {
 function updateCustomerStatuses() {
     const today = new Date().toISOString().split('T')[0];
     window.AppState.customers.forEach(async c => {
-        if (c.expiry < today && c.status === 'Active') {
+        if (c.expiryDate < today && c.status === 'Active') {
             c.status = 'Expired';
+
+            // SSoT: Update customer paymentStatus to Due
+            if (c.paymentStatus !== 'Due') {
+                await updateDoc(doc(db, "customers", c.firestoreId), {
+                    status: 'Expired',
+                    paymentStatus: 'Due'
+                });
+            }
 
             // Automated Billing: Create "Due" entry if it doesn't exist for this billing cycle (approx 30 days)
             const thirtyDaysAgo = new Date();
@@ -114,7 +122,7 @@ function updateCustomerStatuses() {
                 const newDue = {
                     id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                     customer: c.name,
-                    amount: c.price || 0,
+                    amount: c.planPrice || 0,
                     date: today,
                     method: '-',
                     status: 'Due',
@@ -125,8 +133,12 @@ function updateCustomerStatuses() {
                 await addDoc(collection(db, "payments"), newDue);
                 console.log(`Automated billing created for ${c.name}`);
             }
-        } else if (c.expiry >= today && c.status === 'Expired') {
+        } else if (c.expiryDate >= today && c.status === 'Expired') {
             c.status = 'Active';
+            // Note: We don't auto-set to Paid because that requires actual payment
+            await updateDoc(doc(db, "customers", c.firestoreId), {
+                status: 'Active'
+            });
         }
     });
 }

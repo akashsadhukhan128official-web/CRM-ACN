@@ -87,8 +87,8 @@ function renderCustomersTable(container, options = {}) {
                     </thead>
                     <tbody>
                         ${displayCustomers.map(c => {
-        const days = getDaysLeft(c.expiry);
-        const payStatus = c.paymentStatus || (new Date(c.expiry) <= new Date() ? 'Due' : 'Paid');
+        const days = getDaysLeft(c.expiryDate);
+        const payStatus = c.paymentStatus || (new Date(c.expiryDate) <= new Date() ? 'Due' : 'Paid');
 
         return `
                             <tr data-id="${c.id}">
@@ -96,7 +96,7 @@ function renderCustomersTable(container, options = {}) {
                                 <td style="font-weight: 600;">${c.name}</td>
                                 <td>${c.phone}</td>
                                 <td>${c.plan}</td>
-                                <td>${c.expiry}</td>
+                                <td>${c.expiryDate}</td>
                                 <td style="color: ${days.color}; font-weight: 600;">${days.text}</td>
                                 <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
                                 <td>
@@ -192,7 +192,7 @@ function renderAddCustomer(container) {
                 </div>
                 <div class="form-group">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Expiry Date (Calculated)</label>
-                    <input type="date" name="expiry" id="expiry-date" readonly style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(var(--acn-blue-rgb), 0.2); background: rgba(var(--acn-blue-rgb), 0.05); cursor: not-allowed;">
+                    <input type="date" name="expiryDate" id="expiry-date" readonly style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(var(--acn-blue-rgb), 0.2); background: rgba(var(--acn-blue-rgb), 0.05); cursor: not-allowed;">
                 </div>
                 
                 <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
@@ -232,7 +232,7 @@ function renderAddCustomer(container) {
 
         const newCust = {
             ...data,
-            price: price,
+            planPrice: price,
             id: (100 + window.AppState.customers.length + 1).toString(),
             status: 'Active',
             createdAt: new Date().toISOString()
@@ -285,11 +285,11 @@ function viewCustomer(firestoreId) {
                 </div>
                 <div>
                     <label style="color: var(--text-secondary); font-size: 0.875rem;">Price</label>
-                    <p style="margin-top: 4px; font-weight: 600;">₹${c.price}</p>
+                    <p style="margin-top: 4px; font-weight: 600;">₹${c.planPrice}</p>
                 </div>
                 <div>
                     <label style="color: var(--text-secondary); font-size: 0.875rem;">Expiry Date</label>
-                    <p style="margin-top: 4px; color: var(--acn-orange); font-weight: 700;">${c.expiry}</p>
+                    <p style="margin-top: 4px; color: var(--acn-orange); font-weight: 700;">${c.expiryDate}</p>
                 </div>
             </div>
             <div style="margin-top: 40px; display: flex; justify-content: flex-end;">
@@ -330,7 +330,7 @@ function editCustomer(firestoreId) {
                 </div>
                 <div class="form-group">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Expiry Date</label>
-                    <input type="date" name="expiry" id="edit-expiry-date" value="${c.expiry}" required class="glass-input">
+                    <input type="date" name="expiryDate" id="edit-expiry-date" value="${c.expiryDate}" required class="glass-input">
                 </div>
                 <div class="form-group" style="grid-column: span 2;">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Address</label>
@@ -379,7 +379,7 @@ function editCustomer(firestoreId) {
 
         // Auto Status Update Logic
         const today = new Date().toISOString().split('T')[0];
-        if (data.expiry < today) {
+        if (data.expiryDate < today) {
             data.status = 'Expired';
         } else if (data.status === 'Expired') {
             data.status = 'Active'; // Reactivate if date moved to future
@@ -451,7 +451,7 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
             await addDoc(collection(db, "payments"), {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                 customer: customerName,
-                amount: customer.price || 0,
+                amount: customer.planPrice || 0,
                 date: today,
                 method: '-',
                 status: 'Due',
@@ -474,7 +474,7 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
             await addDoc(collection(db, "payments"), {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                 customer: customerName,
-                amount: customer.price || 0,
+                amount: customer.planPrice || 0,
                 date: today,
                 method: '-',
                 status: 'Paid',
