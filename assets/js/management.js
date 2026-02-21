@@ -14,43 +14,11 @@ window.renderStaff = renderStaff;
 window.editStaff = editStaff;
 window.renderSettings = renderSettings;
 window.togglePass = togglePass;
+window.hashPassword = hashPassword;
 window.editPlan = editPlan;
 window.confirmDeletePlan = confirmDeletePlan;
 window.deletePlan = deletePlan;
 window.addStaff = addStaff;
-window.updateStaffProfile = async (id, e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = Object.fromEntries(fd.entries());
-    const staff = window.AppState.staff.find(s => s.id === id);
-    if (!staff || !staff.firestoreId) return;
-    try {
-        await updateDoc(doc(db, "staff", staff.firestoreId), data);
-        showToast('Staff profile updated', 'success');
-        closeModal();
-    } catch (error) {
-        showToast('Update failed', 'error');
-    }
-};
-window.changeStaffPassword = async (id, e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = Object.fromEntries(fd.entries());
-    const staff = window.AppState.staff.find(s => s.id === id);
-    if (!staff || !staff.firestoreId) return;
-    if (data.newPassword !== data.confirmPassword) {
-        showToast('Passwords do not match', 'error');
-        return;
-    }
-    try {
-        await updateDoc(doc(db, "staff", staff.firestoreId), { password: data.newPassword });
-        showToast('Password updated', 'success');
-        closeModal();
-    } catch (error) {
-        showToast('Password update failed', 'error');
-    }
-};
-
 // Real-time listener for Payments
 onSnapshot(query(collection(db, "payments"), orderBy("date", "desc")), (snapshot) => {
     window.AppState.payments = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
@@ -484,7 +452,7 @@ function renderStaff(container) {
                                     </span>
                                 </td>
                                 <td>
-                                    <button class="glass-button" onclick="editStaff('${s.id}')">
+                                    <button class="glass-button" onclick="editStaff('${s.firestoreId}')">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
                                         Edit
                                     </button>
@@ -500,25 +468,66 @@ function renderStaff(container) {
 
 function addStaff() {
     openModal(`
-        <div style="width: 450px; max-width: 95vw;">
-            <h3 style="margin-bottom: 24px;">Add Staff Member</h3>
-            <form id="add-staff-form" style="display: flex; flex-direction: column; gap: 18px;">
-                <div class="form-group">
-                    <label class="modal-label">Full Name</label>
-                    <input type="text" name="name" placeholder="Staff Name" required class="glass-input">
+        <div style="width: 480px; max-width: 95vw;">
+            <h3 style="margin-bottom: 24px; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px;">Add Staff Member</h3>
+            <form id="add-staff-form" style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="modal-label">Full Name</label>
+                        <input type="text" name="name" placeholder="Staff Name" required class="glass-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">System Role / Designation</label>
+                        <input type="text" name="role_desc" placeholder="e.g. Technician" required class="glass-input">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="modal-label">Role</label>
-                    <input type="text" name="role" placeholder="e.g. Technician" required class="glass-input">
-                </div>
+                
                 <div class="form-group">
                     <label class="modal-label">Access Level</label>
-                    <select name="access" class="glass-input">
-                        <option>Full</option>
-                        <option>Read/Write</option>
-                        <option>Read Only</option>
+                    <select name="access" id="staff-access" class="glass-input">
+                        <option value="Full">Full (Administrator)</option>
+                        <option value="Read/Write">Read/Write (Standard Staff)</option>
+                        <option value="Read Only">Read Only (Viewer)</option>
                     </select>
                 </div>
+
+                <div style="background: rgba(var(--acn-blue-rgb), 0.03); border: 1px solid var(--glass-border); border-radius: 12px; padding: 20px; margin-top: 5px;">
+                    <h4 style="margin-bottom: 15px; font-size: 0.9rem; color: var(--acn-blue); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Account Security</h4>
+                    
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="modal-label">Admin Old Password (Verification)</label>
+                        <div style="position: relative;">
+                            <input type="password" id="admin-verify-pass" name="admin_pass" placeholder="Confirm your identity" required class="glass-input" style="border-radius: 10px;">
+                            <button type="button" class="eye-toggle" onclick="togglePass('admin-verify-pass')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label class="modal-label">New Staff Password</label>
+                            <div style="position: relative;">
+                                <input type="password" id="staff-new-pass" name="password" placeholder="Min 6 chars" required class="glass-input" style="border-radius: 10px;">
+                                <button type="button" class="eye-toggle" onclick="togglePass('staff-new-pass')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="modal-label">Confirm Password</label>
+                            <div style="position: relative;">
+                                <input type="password" id="staff-conf-pass" name="confirm_password" placeholder="Repeat password" required class="glass-input" style="border-radius: 10px;">
+                                <button type="button" class="eye-toggle" onclick="togglePass('staff-conf-pass')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="add-staff-error" style="color: #ef4444; font-size: 0.8rem; min-height: 1.2rem;"></div>
+
                 <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
                     <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="glass-button primary">Add Member</button>
@@ -529,23 +538,67 @@ function addStaff() {
 
     document.getElementById('add-staff-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const err = document.getElementById('add-staff-error');
+        err.textContent = '';
+
         const fd = new FormData(e.target);
         const data = Object.fromEntries(fd.entries());
-        data.status = 'Offline';
-        data.id = 'S' + (window.AppState.staff.length + 1);
+
+        // 1. Admin Verification
+        const currentAdmin = window.AppState.staff.find(s => s.access === 'Full'); // Simplified lookup
+        const hashedAdminInput = await hashPassword(data.admin_pass);
+
+        // Check if admin password matches (supporting both hashed and plain for existing data)
+        const adminPassMatch = (data.admin_pass === currentAdmin.password) || (hashedAdminInput === currentAdmin.password);
+
+        if (!adminPassMatch) {
+            err.textContent = 'Incorrect Admin Password';
+            return;
+        }
+
+        // 2. Password Complexity
+        if (data.password.length < 6) {
+            err.textContent = 'New password minimum 6 characters';
+            return;
+        }
+
+        if (data.password !== data.confirm_password) {
+            err.textContent = 'Confirm password must match';
+            return;
+        }
+
+        // 3. Role Logic
+        let role = data.role_desc;
+        if (data.access === 'Full') role = 'Admin';
+        else if (data.access === 'Read/Write') role = 'Staff';
+
+        // 4. Secure Creation
+        const hashedStaffPass = await hashPassword(data.password);
+        const newStaff = {
+            name: data.name,
+            role: role,
+            access: data.access,
+            password: hashedStaffPass,
+            status: 'Offline',
+            id: 'S' + (window.AppState.staff.length + 1),
+            createdAt: new Date().toISOString()
+        };
 
         try {
-            await addDoc(collection(db, "staff"), data);
-            showToast('Staff member added', 'success');
+            await addDoc(collection(db, "staff"), newStaff);
+            showToast('Staff Account Created Successfully', 'success');
             closeModal();
+            renderSection('staff');
         } catch (error) {
             showToast('Failed to add staff', 'error');
+            console.error(error);
         }
     });
 }
 
-function editStaff(id) {
-    const s = window.AppState.staff.find(x => x.id === id);
+function editStaff(firestoreId) {
+    const s = window.AppState.staff.find(x => x.firestoreId === firestoreId);
+    if (!s) return;
     openModal(`
         <div style="width: 550px; max-width: 95vw;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">
@@ -690,5 +743,12 @@ function editStaff(id) {
 
 function togglePass(id) {
     const el = document.getElementById(id);
-    el.type = el.type === 'password' ? 'text' : 'password';
+    if (el) el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+async function hashPassword(string) {
+    const utf8 = new TextEncoder().encode(string);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }

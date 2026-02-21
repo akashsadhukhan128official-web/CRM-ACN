@@ -97,13 +97,13 @@ function renderCustomersTable(container, options = {}) {
                                 <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
                                 <td style="text-align: center;">
                                     <div class="action-pill">
-                                        <button class="action-btn view" onclick="viewCustomer('${c.id}')" title="View Customer Details">
+                                        <button class="action-btn view" onclick="viewCustomer('${c.firestoreId}')" title="View Customer Details">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
                                         </button>
-                                        <button class="action-btn edit" onclick="editCustomer('${c.id}')" title="Edit Customer Profile">
+                                        <button class="action-btn edit" onclick="editCustomer('${c.firestoreId}')" title="Edit Customer Profile">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
                                         </button>
-                                        <button class="action-btn delete" onclick="confirmDelete('${c.id}')" title="Delete Customer">
+                                        <button class="action-btn delete" onclick="confirmDelete('${c.firestoreId}')" title="Delete Customer">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                                         </button>
                                     </div>
@@ -232,8 +232,12 @@ function renderAddCustomer(container) {
 }
 
 // Actions: View, Edit, Delete
-function viewCustomer(id) {
-    const c = window.AppState.customers.find(x => x.id === id);
+function viewCustomer(firestoreId) {
+    const c = window.AppState.customers.find(x => x.firestoreId === firestoreId);
+    if (!c) {
+        showToast('Customer record not found', 'error');
+        return;
+    }
     openModal(`
         <div style="padding: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 24px;">
@@ -277,8 +281,12 @@ function viewCustomer(id) {
     `);
 }
 
-function editCustomer(id) {
-    const c = window.AppState.customers.find(x => x.id === id);
+function editCustomer(firestoreId) {
+    const c = window.AppState.customers.find(x => x.firestoreId === firestoreId);
+    if (!c) {
+        showToast('Customer record not found', 'error');
+        return;
+    }
     openModal(`
         <div style="width: 500px; max-width: 95vw;">
             <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 10px;">
@@ -371,8 +379,9 @@ function editCustomer(id) {
     });
 }
 
-function confirmDelete(id) {
-    const c = window.AppState.customers.find(x => x.id === id);
+function confirmDelete(firestoreId) {
+    const c = window.AppState.customers.find(x => x.firestoreId === firestoreId);
+    if (!c) return;
     openModal(`
         <div style="text-align: center; padding: 10px;">
             <i class="lucide-alert-triangle" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
@@ -380,21 +389,17 @@ function confirmDelete(id) {
             <p style="color: var(--text-secondary); margin: 10px 0 30px;">Are you sure you want to delete <b>${c.name}</b>? This action cannot be undone.</p>
             <div style="display: flex; gap: 12px; justify-content: center;">
                 <button class="glass-button" onclick="closeModal()">Keep Customer</button>
-                <button class="glass-button primary" style="background: #ef4444;" onclick="deleteCustomer('${id}')">Delete Forever</button>
+                <button class="glass-button primary" style="background: #ef4444;" onclick="deleteCustomer('${firestoreId}')">Delete Forever</button>
             </div>
         </div>
     `);
 }
 
-async function deleteCustomer(id) {
-    const c = window.AppState.customers.find(cust => cust.id === id);
-    if (!c || !c.firestoreId) return;
-
+async function deleteCustomer(firestoreId) {
     try {
-        await deleteDoc(doc(db, "customers", c.firestoreId));
+        await deleteDoc(doc(db, "customers", firestoreId));
         showToast('Customer record deleted', 'error');
         closeModal();
-        renderSection('all-customers');
     } catch (error) {
         showToast('Deletion failed', 'error');
     }
