@@ -7,6 +7,7 @@ import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, order
 
 // Expose Globals IMMEDIATELY
 window.renderCustomersTable = renderCustomersTable;
+window.renderAddCustomer = renderAddCustomer;
 window.filterTable = filterTable;
 window.getStatusClass = getStatusClass;
 window.addCustomer = addCustomer;

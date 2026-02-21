@@ -13,6 +13,7 @@ window.renderReports = renderReports;
 window.renderStaff = renderStaff;
 window.editStaff = editStaff;
 window.renderSettings = renderSettings;
+window.togglePass = togglePass;
 window.updateStaffProfile = async (id, e) => {
     e.preventDefault();
     const fd = new FormData(e.target);

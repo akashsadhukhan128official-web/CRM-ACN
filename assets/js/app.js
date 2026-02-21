@@ -31,17 +31,21 @@ window.AppState = {
     ],
     currentSection: 'dashboard',
     currentFilter: 'all',
-    user: { name: 'Admin User', role: 'Super Admin' }
+    user: { name: 'Admin User', role: 'Super Admin' },
+    initialized: false
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    initApp();
+    // We delay the actual app start slightly to let other modules register themselves
+    setTimeout(() => {
+        initApp();
+    }, 100);
 });
 
 function initApp() {
     updateCustomerStatuses(); // Check expiries on load
 
-    // Firebase Auth Persistence
+    // Firebase Auth Persistence & Initialization Guard
     onAuthStateChanged(auth, (user) => {
         const overlay = document.getElementById('login-overlay');
         const lastSection = localStorage.getItem('acn_last_section') || 'dashboard';
@@ -52,9 +56,15 @@ function initApp() {
             // Authenticated: Hide login and restore view
             if (overlay) overlay.style.display = 'none';
             window.AppState.user = { name: user.email.split('@')[0], role: 'Admin' };
-            navigateTo(lastSection, lastParams);
+
+            // If we are on login screen or just starting, go to dashboard or last section
+            if (window.AppState.currentSection === 'login' || !window.AppState.initialized) {
+                window.AppState.initialized = true;
+                navigateTo(lastSection, lastParams);
+            }
         } else {
             // Not authenticated: Show login
+            window.AppState.currentSection = 'login';
             if (overlay) {
                 overlay.style.display = 'flex';
                 overlay.classList.remove('login-hidden');
@@ -110,10 +120,11 @@ function getDaysLeft(dateStr) {
 
 // Global Event Listeners
 function setupEventListeners() {
-    // Navigation routing
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            const section = link.getAttribute('data-section');
+    // Navigation routing via Event Delegation
+    document.addEventListener('click', (e) => {
+        const navLink = e.target.closest('.nav-link');
+        if (navLink) {
+            const section = navLink.getAttribute('data-section');
             if (section) {
                 e.preventDefault();
                 if (section === 'logout') {
@@ -122,7 +133,7 @@ function setupEventListeners() {
                 }
                 navigateTo(section);
             }
-        });
+        }
     });
 
     // Login logic
@@ -232,27 +243,74 @@ function navigateTo(sectionId, params = {}) {
 // Section Renderer
 function renderSection(sectionId) {
     const area = document.getElementById('content-area');
-    area.innerHTML = '<div class="loader">Loading...</div>';
+    if (!area) return;
+
+    area.innerHTML = `
+        <div style="height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;">
+            <div class="loader"></div>
+            <p style="color: var(--text-secondary); font-size: 0.875rem;">Loading ${sectionId}...</p>
+        </div>
+    `;
 
     // Store params in state for modules to access
     const params = window.AppState.lastParams || {};
 
-    // Small delay for smooth transition feel
+    // Small delay for smooth transition feel and to ensure module evaluation
     setTimeout(() => {
-        switch (sectionId) {
-            case 'dashboard': renderDashboard(area); break;
-            case 'add-customer': renderAddCustomer(area); break;
-            case 'all-customers': renderCustomersTable(area, { filter: window.AppState.currentFilter }); break;
-            case 'expiring-soon': renderCustomersTable(area, { filter: 'expiring' }); break;
-            case 'payments': renderPayments(area, params); break;
-            case 'plans': renderPlans(area); break;
-            case 'settings': renderSettings(area); break;
-            case 'reports': renderReports(area, params); break;
-            case 'staff': renderStaff(area); break;
-            default: renderPlaceholder(area, sectionId);
+        try {
+            switch (sectionId) {
+                case 'dashboard':
+                    if (window.renderDashboard) renderDashboard(area);
+                    else throw new Error("renderDashboard not found");
+                    break;
+                case 'add-customer':
+                    if (window.renderAddCustomer) renderAddCustomer(area);
+                    else throw new Error("renderAddCustomer not found");
+                    break;
+                case 'all-customers':
+                    if (window.renderCustomersTable) renderCustomersTable(area, { filter: window.AppState.currentFilter });
+                    else throw new Error("renderCustomersTable not found");
+                    break;
+                case 'expiring-soon':
+                    if (window.renderCustomersTable) renderCustomersTable(area, { filter: 'expiring' });
+                    else throw new Error("renderCustomersTable not found");
+                    break;
+                case 'payments':
+                    if (window.renderPayments) renderPayments(area, params);
+                    else throw new Error("renderPayments not found");
+                    break;
+                case 'plans':
+                    if (window.renderPlans) renderPlans(area);
+                    else throw new Error("renderPlans not found");
+                    break;
+                case 'settings':
+                    if (window.renderSettings) renderSettings(area);
+                    else throw new Error("renderSettings not found");
+                    break;
+                case 'reports':
+                    if (window.renderReports) renderReports(area, params);
+                    else throw new Error("renderReports not found");
+                    break;
+                case 'staff':
+                    if (window.renderStaff) renderStaff(area);
+                    else throw new Error("renderStaff not found");
+                    break;
+                default: renderPlaceholder(area, sectionId);
+            }
+        } catch (err) {
+            console.error("Routing Error:", err);
+            area.innerHTML = `
+                <div class="glass-card" style="padding: 40px; text-align: center; border: 1px solid rgba(239, 68, 68, 0.2);">
+                    <i class="lucide-alert-triangle" style="font-size: 40px; color: #ef4444; margin-bottom: 16px;"></i>
+                    <h3>Module Load Error</h3>
+                    <p style="color: var(--text-secondary); margin: 8px 0 20px;">The "${sectionId}" module failed to initialize. This may be due to a script loading delay.</p>
+                    <button class="glass-button primary" onclick="location.reload()">Reload System</button>
+                    <button class="glass-button" style="margin-left: 8px;" onclick="navigateTo('dashboard')">Try Dashboard</button>
+                </div>
+            `;
         }
         window.AppState.lastParams = null; // Clear after use
-    }, 300);
+    }, 400);
 }
 
 /**
