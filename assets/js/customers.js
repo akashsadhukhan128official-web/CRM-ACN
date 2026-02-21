@@ -14,6 +14,7 @@ window.viewCustomer = viewCustomer;
 window.editCustomer = editCustomer;
 window.confirmDelete = confirmDelete;
 window.deleteCustomer = deleteCustomer;
+window.togglePaymentStatus = togglePaymentStatus;
 
 // Real-time listener for Customers
 onSnapshot(query(collection(db, "customers"), orderBy("id", "desc")), (snapshot) => {
@@ -80,12 +81,19 @@ function renderCustomersTable(container, options = {}) {
                             <th>Expiry</th>
                             <th>Days Left</th>
                             <th>Status</th>
+                            <th>Payment</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${displayCustomers.map(c => {
         const days = getDaysLeft(c.expiry);
+        const lastPayment = [...window.AppState.payments]
+            .filter(p => p.customer === c.name)
+            .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+        const payStatus = lastPayment ? lastPayment.status : 'Due';
+
         return `
                             <tr data-id="${c.id}">
                                 <td>#${c.id}</td>
@@ -95,6 +103,20 @@ function renderCustomersTable(container, options = {}) {
                                 <td>${c.expiry}</td>
                                 <td style="color: ${days.color}; font-weight: 600;">${days.text}</td>
                                 <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
+                                <td>
+                                    <div style="display: flex; gap: 4px; background: rgba(0,0,0,0.05); padding: 2px; border-radius: 20px; width: fit-content;">
+                                        <button onclick="togglePaymentStatus('${c.name}', '${c.firestoreId}', 'Due')" 
+                                            style="padding: 4px 10px; border-radius: 15px; border: none; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: all 0.3s;
+                                            ${payStatus === 'Due' ? 'background: #ef4444; color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);' : 'background: transparent; color: var(--text-secondary);'}">
+                                            Due
+                                        </button>
+                                        <button onclick="togglePaymentStatus('${c.name}', '${c.firestoreId}', 'Paid')" 
+                                            style="padding: 4px 10px; border-radius: 15px; border: none; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: all 0.3s;
+                                            ${payStatus === 'Paid' ? 'background: #22c55e; color: white; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);' : 'background: transparent; color: var(--text-secondary);'}">
+                                            Paid
+                                        </button>
+                                    </div>
+                                </td>
                                 <td style="text-align: center;">
                                     <div class="action-pill">
                                         <button class="action-btn view" onclick="viewCustomer('${c.firestoreId}')" title="View Customer Details">
@@ -398,11 +420,65 @@ function confirmDelete(firestoreId) {
 async function deleteCustomer(firestoreId) {
     try {
         await deleteDoc(doc(db, "customers", firestoreId));
-        showToast('Customer record deleted', 'error');
+        showToast('Customer deleted', 'error');
         closeModal();
     } catch (error) {
-        showToast('Deletion failed', 'error');
+        showToast('Failed to delete customer', 'error');
     }
 }
 
+async function togglePaymentStatus(customerName, firestoreId, newStatus) {
+    const customer = window.AppState.customers.find(c => c.firestoreId === firestoreId);
+    if (!customer) return;
 
+    const today = new Date().toISOString().split('T')[0];
+
+    // Check for existing "Due" entry today to prevent duplicates
+    const existingDue = window.AppState.payments.find(p =>
+        p.customer === customerName &&
+        p.status === 'Due' &&
+        p.date === today
+    );
+
+    if (newStatus === 'Due') {
+        if (existingDue) {
+            showToast('Payment already marked as Due for today', 'info');
+            return;
+        }
+
+        try {
+            await addDoc(collection(db, "payments"), {
+                id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
+                customer: customerName,
+                amount: customer.price || 0,
+                date: today,
+                method: '-',
+                status: 'Due',
+                paid: false,
+                customerId: customer.id,
+                createdAt: new Date().toISOString()
+            });
+            showToast(`Marked ${customerName} as Due`, 'warning');
+        } catch (error) {
+            showToast('Failed to update status', 'error');
+        }
+    } else if (newStatus === 'Paid') {
+        try {
+            // Always create a new Paid entry as per instructions
+            await addDoc(collection(db, "payments"), {
+                id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
+                customer: customerName,
+                amount: customer.price || 0,
+                date: today,
+                method: '-',
+                status: 'Paid',
+                paid: true,
+                customerId: customer.id,
+                createdAt: new Date().toISOString()
+            });
+            showToast(`Marked ${customerName} as Paid`, 'success');
+        } catch (error) {
+            showToast('Failed to process payment', 'error');
+        }
+    }
+}

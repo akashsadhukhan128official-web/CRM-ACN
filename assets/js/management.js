@@ -27,7 +27,7 @@ window.addStaff = addStaff;
 // Real-time listener for Payments
 onSnapshot(query(collection(db, "payments"), orderBy("date", "desc")), (snapshot) => {
     window.AppState.payments = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
-    if (window.AppState.currentSection === 'payments' || window.AppState.currentSection === 'dashboard') {
+    if (['payments', 'dashboard', 'all-customers', 'expiring-soon'].includes(window.AppState.currentSection)) {
         renderSection(window.AppState.currentSection);
     }
 });
@@ -89,8 +89,9 @@ function renderPayments(container, params = {}) {
                                 <td style="text-align: center;">
                                     <div class="action-pill">
                                         ${p.status === 'Due' ? `
-                                            <button class="action-btn view" onclick="markAsPaid('${p.firestoreId}')" title="Mark as Paid" style="color: #22c55e; background: rgba(34,197,94,0.1);">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                            <button class="action-btn view" onclick="markAsPaid('${p.firestoreId}')" title="Payment Received" style="color: #22c55e; background: rgba(34,197,94,0.1); width: auto; padding: 0 10px; font-size: 0.75rem; gap: 5px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                                Received
                                             </button>
                                         ` : ''}
                                         <button class="action-btn edit" onclick="editPayment('${p.firestoreId}')" title="Edit Entry">
@@ -213,7 +214,7 @@ async function markAsPaid(firestoreId) {
                 method: data.method,
                 date: data.date
             });
-            showToast('Status updated to Paid', 'success');
+            showToast('Payment Marked as Paid', 'success');
             closeModal();
         } catch (error) {
             showToast('Update failed', 'error');
