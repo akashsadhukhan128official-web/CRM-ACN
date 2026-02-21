@@ -340,6 +340,10 @@ function editCustomer(firestoreId) {
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Expiry Date</label>
                     <input type="date" name="expiryDate" id="edit-expiry-date" value="${c.expiryDate}" required class="glass-input">
                 </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Plan Amount (₹)</label>
+                    <input type="number" name="planPrice" value="${c.planPrice || 0}" placeholder="Enter amount" required class="glass-input">
+                </div>
                 <div class="form-group" style="grid-column: span 2;">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Address</label>
                     <input type="text" name="address" value="${c.address}" class="glass-input">
@@ -384,6 +388,7 @@ function editCustomer(firestoreId) {
 
         const fd = new FormData(e.target);
         const data = Object.fromEntries(fd.entries());
+        data.planPrice = parseFloat(data.planPrice) || 0;
 
         // Auto Status Update Logic
         const today = new Date().toISOString().split('T')[0];
