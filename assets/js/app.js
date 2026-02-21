@@ -122,6 +122,7 @@ function getDaysLeft(dateStr) {
 function setupEventListeners() {
     // Navigation routing via Event Delegation
     document.addEventListener('click', (e) => {
+        // Ensure we catch the click even if it hits the icon inside the link
         const navLink = e.target.closest('.nav-link');
         if (navLink) {
             const section = navLink.getAttribute('data-section');
@@ -132,9 +133,22 @@ function setupEventListeners() {
                     return;
                 }
                 navigateTo(section);
+
+                // On mobile, you might want to close sidebar here
+                if (window.innerWidth < 1024) {
+                    document.querySelector('.sidebar')?.classList.remove('active');
+                }
             }
         }
     });
+
+    // Close modal on overlay click
+    const modalOverlay = document.getElementById('modal-overlay');
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) closeModal();
+        });
+    }
 
     // Login logic
     const loginForm = document.getElementById('login-form');
@@ -256,7 +270,10 @@ function renderSection(sectionId) {
     const params = window.AppState.lastParams || {};
 
     // Small delay for smooth transition feel and to ensure module evaluation
-    setTimeout(() => {
+    let retryCount = 0;
+    const maxRetries = 5;
+
+    const attemptRender = () => {
         try {
             switch (sectionId) {
                 case 'dashboard':
@@ -292,25 +309,34 @@ function renderSection(sectionId) {
                     else throw new Error("renderReports not found");
                     break;
                 case 'staff':
+                case 'staff-management': // Support both ID variants
                     if (window.renderStaff) renderStaff(area);
                     else throw new Error("renderStaff not found");
                     break;
                 default: renderPlaceholder(area, sectionId);
             }
         } catch (err) {
-            console.error("Routing Error:", err);
-            area.innerHTML = `
-                <div class="glass-card" style="padding: 40px; text-align: center; border: 1px solid rgba(239, 68, 68, 0.2);">
-                    <i class="lucide-alert-triangle" style="font-size: 40px; color: #ef4444; margin-bottom: 16px;"></i>
-                    <h3>Module Load Error</h3>
-                    <p style="color: var(--text-secondary); margin: 8px 0 20px;">The "${sectionId}" module failed to initialize. This may be due to a script loading delay.</p>
-                    <button class="glass-button primary" onclick="location.reload()">Reload System</button>
-                    <button class="glass-button" style="margin-left: 8px;" onclick="navigateTo('dashboard')">Try Dashboard</button>
-                </div>
-            `;
+            console.warn(`Render attempt ${retryCount + 1} failed for ${sectionId}:`, err.message);
+            if (retryCount < maxRetries) {
+                retryCount++;
+                setTimeout(attemptRender, 200);
+            } else {
+                console.error("Final Routing Error:", err);
+                area.innerHTML = `
+                    <div class="glass-card" style="padding: 40px; text-align: center; border: 1px solid rgba(239, 68, 68, 0.2);">
+                        <i class="lucide-alert-triangle" style="font-size: 40px; color: #ef4444; margin-bottom: 16px;"></i>
+                        <h3>System Recovery</h3>
+                        <p style="color: var(--text-secondary); margin: 8px 0 20px;">The module for "${sectionId}" is taking too long to respond.</p>
+                        <button class="glass-button primary" onclick="location.reload()">Force Restart</button>
+                        <button class="glass-button" style="margin-left: 8px;" onclick="navigateTo('dashboard')">To Dashboard</button>
+                    </div>
+                `;
+            }
         }
-        window.AppState.lastParams = null; // Clear after use
-    }, 400);
+    };
+
+    setTimeout(attemptRender, 300);
+    window.AppState.lastParams = null; // Clear after use
 }
 
 /**
@@ -414,6 +440,7 @@ function renderPlaceholder(container, id) {
 // Expose Globals for HTML handlers (at the end to ensure all are defined)
 window.navigateTo = navigateTo;
 window.renderSection = renderSection;
+window.openModal = openModal;
 window.closeModal = closeModal;
 window.showLogoutConfirmation = showLogoutConfirmation;
 window.logout = logout;

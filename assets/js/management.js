@@ -2,7 +2,7 @@
  * Management Modules: Payments, Plans, Reports, Staff, Settings
  */
 import { db } from './firebase-config.js';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
 // Expose Globals IMMEDIATELY for HTML handlers
 window.renderPayments = renderPayments;
@@ -14,6 +14,10 @@ window.renderStaff = renderStaff;
 window.editStaff = editStaff;
 window.renderSettings = renderSettings;
 window.togglePass = togglePass;
+window.editPlan = editPlan;
+window.confirmDeletePlan = confirmDeletePlan;
+window.deletePlan = deletePlan;
+window.addStaff = addStaff;
 window.updateStaffProfile = async (id, e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -179,17 +183,17 @@ function renderPlans(container) {
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
                 ${window.AppState.plans.map(p => `
-                    <div class="glass-card ${p.isNew ? 'fade-in-up' : ''}" style="padding: 24px; border-left: 4px solid var(--acn-blue); transition: transform 0.2s;">
+                    <div class="glass-card" style="padding: 24px; border-left: 4px solid var(--acn-blue); transition: transform 0.2s;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                             <div>
                                 <h4 style="font-size: 1.1rem; margin-bottom: 4px;">${p.name}</h4>
                                 <p style="color: var(--text-secondary); font-size: 0.875rem;">${p.speed || ''} | Validity: ${p.validity} Days | ${p.type || 'Fiber'}</p>
                             </div>
-                            <span style="font-size: 1.25rem; font-weight: 700; color: var(--acn-blue);">₹${p.price.toLocaleString()}</span>
+                            <span style="font-size: 1.25rem; font-weight: 700; color: var(--acn-blue);">₹${(p.price || 0).toLocaleString()}</span>
                         </div>
                         <div style="margin-top: 24px; display: flex; gap: 12px;">
-                            <button class="glass-button" style="flex: 1; padding: 8px;">Edit</button>
-                            <button class="glass-button" style="flex: 1; padding: 8px; color: #ef4444;">Delete</button>
+                            <button class="glass-button" style="flex: 1; padding: 8px;" onclick="editPlan('${p.firestoreId}')">Edit</button>
+                            <button class="glass-button" style="flex: 1; padding: 8px; color: #ef4444;" onclick="confirmDeletePlan('${p.firestoreId}')">Delete</button>
                         </div>
                     </div>
                 `).join('')}
@@ -200,6 +204,11 @@ function renderPlans(container) {
 }
 
 function addPlan() {
+    if (typeof window.openModal !== 'function') {
+        console.error('CRITICAL: window.openModal is not defined. Ensure app.js is loaded correctly.');
+        return;
+    }
+
     openModal(`
         <div style="width: 450px; max-width: 95vw;">
             <h3 style="margin-bottom: 24px;">Create New Service Plan</h3>
@@ -280,10 +289,101 @@ function addPlan() {
             await addDoc(collection(db, "plans"), newPlan);
             showToast('Plan created successfully', 'success');
             closeModal();
+            renderSection('plans'); // Force re-render just in case listener is slow
         } catch (error) {
             showToast('Failed to save plan', 'error');
         }
     });
+}
+
+function editPlan(firestoreId) {
+    const p = window.AppState.plans.find(x => x.firestoreId === firestoreId);
+    if (!p) return;
+
+    openModal(`
+        <div style="width: 450px; max-width: 95vw;">
+            <h3 style="margin-bottom: 24px;">Edit Service Plan</h3>
+            <form id="edit-plan-form" style="display: flex; flex-direction: column; gap: 18px;">
+                <div class="form-group">
+                    <label class="modal-label">Plan Name</label>
+                    <input type="text" name="name" value="${p.name}" required class="glass-input">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="modal-label">Speed</label>
+                        <input type="text" name="speed" value="${p.speed || ''}" required class="glass-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">Connection Type</label>
+                        <select name="type" class="glass-input">
+                            <option ${p.type === 'Fiber' ? 'selected' : ''}>Fiber</option>
+                            <option ${p.type === 'Broadband' ? 'selected' : ''}>Broadband</option>
+                            <option ${p.type === 'Wireless' ? 'selected' : ''}>Wireless</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="modal-label">Price (₹)</label>
+                        <input type="number" name="price" value="${p.price}" required class="glass-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="modal-label">Validity (Days)</label>
+                        <input type="number" name="validity" value="${p.validity}" required class="glass-input">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+                    <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="glass-button primary">Update Plan</button>
+                </div>
+            </form>
+        </div>
+    `);
+
+    document.getElementById('edit-plan-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+        data.price = parseFloat(data.price);
+        data.validity = parseInt(data.validity);
+
+        try {
+            await updateDoc(doc(db, "plans", firestoreId), data);
+            showToast('Plan updated successfully', 'success');
+            closeModal();
+            renderSection('plans');
+        } catch (error) {
+            showToast('Failed to update plan', 'error');
+        }
+    });
+}
+
+function confirmDeletePlan(firestoreId) {
+    const p = window.AppState.plans.find(x => x.firestoreId === firestoreId);
+    if (!p) return;
+
+    openModal(`
+        <div style="text-align: center; padding: 10px;">
+            <i class="lucide-alert-triangle" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
+            <h3>Delete Plan?</h3>
+            <p style="color: var(--text-secondary); margin: 10px 0 30px;">Are you sure you want to delete the plan <b>${p.name}</b>?</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button class="glass-button" onclick="closeModal()">Cancel</button>
+                <button class="glass-button primary" style="background: #ef4444;" onclick="deletePlan('${firestoreId}')">Delete Plan</button>
+            </div>
+        </div>
+    `);
+}
+
+async function deletePlan(firestoreId) {
+    try {
+        await deleteDoc(doc(db, "plans", firestoreId));
+        showToast('Plan deleted', 'error');
+        closeModal();
+        renderSection('plans');
+    } catch (error) {
+        showToast('Delete failed', 'error');
+    }
 }
 
 function renderSettings(container) {
@@ -399,7 +499,49 @@ function renderStaff(container) {
 }
 
 function addStaff() {
-    showToast('Staff creation module optimized for production', 'success');
+    openModal(`
+        <div style="width: 450px; max-width: 95vw;">
+            <h3 style="margin-bottom: 24px;">Add Staff Member</h3>
+            <form id="add-staff-form" style="display: flex; flex-direction: column; gap: 18px;">
+                <div class="form-group">
+                    <label class="modal-label">Full Name</label>
+                    <input type="text" name="name" placeholder="Staff Name" required class="glass-input">
+                </div>
+                <div class="form-group">
+                    <label class="modal-label">Role</label>
+                    <input type="text" name="role" placeholder="e.g. Technician" required class="glass-input">
+                </div>
+                <div class="form-group">
+                    <label class="modal-label">Access Level</label>
+                    <select name="access" class="glass-input">
+                        <option>Full</option>
+                        <option>Read/Write</option>
+                        <option>Read Only</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+                    <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="glass-button primary">Add Member</button>
+                </div>
+            </form>
+        </div>
+    `);
+
+    document.getElementById('add-staff-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+        data.status = 'Offline';
+        data.id = 'S' + (window.AppState.staff.length + 1);
+
+        try {
+            await addDoc(collection(db, "staff"), data);
+            showToast('Staff member added', 'success');
+            closeModal();
+        } catch (error) {
+            showToast('Failed to add staff', 'error');
+        }
+    });
 }
 
 function editStaff(id) {
