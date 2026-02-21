@@ -102,17 +102,22 @@ function renderCustomersTable(container, options = {}) {
                                 <td style="color: ${days.color}; font-weight: 600;">${days.text}</td>
                                 <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
                                 <td>
-                                    <div style="display: flex; gap: 4px; background: rgba(0,0,0,0.05); padding: 2px; border-radius: 20px; width: fit-content;">
-                                        <button onclick="togglePaymentStatus('${c.name}', '${c.firestoreId}', 'Due')" 
-                                            style="padding: 4px 10px; border-radius: 15px; border: none; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: all 0.3s;
-                                            ${payStatus === 'Due' ? 'background: #ef4444; color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);' : 'background: transparent; color: var(--text-secondary);'}">
-                                            Due
-                                        </button>
-                                        <button onclick="togglePaymentStatus('${c.name}', '${c.firestoreId}', 'Paid')" 
-                                            style="padding: 4px 10px; border-radius: 15px; border: none; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: all 0.3s;
-                                            ${payStatus === 'Paid' ? 'background: #22c55e; color: white; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);' : 'background: transparent; color: var(--text-secondary);'}">
-                                            Paid
-                                        </button>
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="display: flex; gap: 4px; background: rgba(0,0,0,0.05); padding: 2px; border-radius: 20px; width: fit-content;">
+                                            <button onclick="togglePaymentStatus('${c.name}', '${c.firestoreId}', 'Due')" 
+                                                style="padding: 4px 10px; border-radius: 15px; border: none; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: all 0.3s;
+                                                ${payStatus === 'Due' ? 'background: #ef4444; color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);' : 'background: transparent; color: var(--text-secondary);'}">
+                                                Due
+                                            </button>
+                                            <button onclick="togglePaymentStatus('${c.name}', '${c.firestoreId}', 'Paid')" 
+                                                style="padding: 4px 10px; border-radius: 15px; border: none; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: all 0.3s;
+                                                ${payStatus === 'Paid' ? 'background: #22c55e; color: white; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);' : 'background: transparent; color: var(--text-secondary);'}">
+                                                Paid
+                                            </button>
+                                        </div>
+                                        <span style="font-size: 0.85rem; font-weight: 600; color: ${payStatus === 'Due' ? '#ef4444' : '#22c55e'}; white-space: nowrap;">
+                                            ${payStatus} ₹${(c.planPrice || 0).toLocaleString()}
+                                        </span>
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
