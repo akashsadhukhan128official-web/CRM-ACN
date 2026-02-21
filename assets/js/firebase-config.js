@@ -16,10 +16,10 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Expose to global scope for vanilla scripts
+// Expose to global scope for vanilla scripts IMMEDIATELY
 window.Firebase = { auth, db };
+
+const analytics = getAnalytics(app);

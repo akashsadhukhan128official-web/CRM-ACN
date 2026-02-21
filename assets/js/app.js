@@ -3,7 +3,7 @@
  * Handles State, Routing, UI Feedback, and Navigation
  */
 import { auth, db } from './firebase-config.js';
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
 
 // Global App State
 window.AppState = {
@@ -130,17 +130,54 @@ function setupEventListeners() {
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = loginForm.querySelector('input[type="text"]').value;
-            const password = loginForm.querySelector('input[type="password"]').value;
+            const email = document.getElementById('admin-id').value;
+            const password = document.getElementById('admin-password').value;
+
+            if (!email || !password) {
+                showToast('Please enter both ID and Password', 'error');
+                return;
+            }
 
             try {
-                // For simplicity assuming email is admin@acn.com or similar if user only provides username
+                // Formatting email if only username provided
                 const loginEmail = email.includes('@') ? email : `${email}@acn.com`;
                 await signInWithEmailAndPassword(auth, loginEmail, password);
                 showToast('Login Successful', 'success');
             } catch (error) {
-                showToast('Invalid credentials or network error', 'error');
-                console.error(error);
+                console.error("Login Error:", error.code, error.message);
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                    showToast('Wait... Registering this as your admin account...', 'info');
+                    // Fallback to auto-registration if it's the first time
+                    try {
+                        const loginEmail = email.includes('@') ? email : `${email}@acn.com`;
+                        await createUserWithEmailAndPassword(auth, loginEmail, password);
+                        showToast('Admin Account Created & Logged In', 'success');
+                    } catch (regErr) {
+                        showToast('Invalid credentials. Check your Password.', 'error');
+                        console.error("Registration Fallback Error:", regErr);
+                    }
+                } else if (error.code === 'auth/operation-not-allowed') {
+                    showToast('Login provider not enabled in Firebase Console.', 'error');
+                } else {
+                    showToast('Login failed: ' + error.message, 'error');
+                }
+            }
+        });
+    }
+
+    // Auto-Setup Helper Logic (Optional link in UI)
+    const setupBtn = document.getElementById('setup-admin-link');
+    if (setupBtn) {
+        setupBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('admin-id').value;
+            const password = document.getElementById('admin-password').value;
+            try {
+                const loginEmail = email.includes('@') ? email : `${email}@acn.com`;
+                await createUserWithEmailAndPassword(auth, loginEmail, password);
+                showToast('First Admin setup successfully!', 'success');
+            } catch (error) {
+                showToast('Project already has an admin or check Firebase console.', 'error');
             }
         });
     }
@@ -305,15 +342,6 @@ async function logout() {
     }
 }
 
-// Expose Globals for HTML handlers
-window.navigateTo = navigateTo;
-window.renderSection = renderSection;
-window.closeModal = closeModal;
-window.showLogoutConfirmation = showLogoutConfirmation;
-window.logout = logout;
-window.showToast = showToast;
-window.getDaysLeft = getDaysLeft;
-
 function renderPlaceholder(container, id) {
     container.innerHTML = `
         <div class="glass-card" style="padding: 60px; text-align: center;">
@@ -324,3 +352,12 @@ function renderPlaceholder(container, id) {
         </div>
     `;
 }
+
+// Expose Globals for HTML handlers (at the end to ensure all are defined)
+window.navigateTo = navigateTo;
+window.renderSection = renderSection;
+window.closeModal = closeModal;
+window.showLogoutConfirmation = showLogoutConfirmation;
+window.logout = logout;
+window.showToast = showToast;
+window.getDaysLeft = getDaysLeft;

@@ -1,3 +1,8 @@
+// Expose Globals IMMEDIATELY
+window.renderDashboard = renderDashboard;
+window.animateCounters = animateCounters;
+window.initCharts = initCharts;
+
 function renderDashboard(container) {
     const todayStr = new Date().toISOString().split('T')[0];
     const thisMonth = todayStr.substring(0, 7);
@@ -160,7 +165,4 @@ function initCharts() {
     });
 }
 
-// Expose Globals
-window.renderDashboard = renderDashboard;
-window.animateCounters = animateCounters;
-window.initCharts = initCharts;
+

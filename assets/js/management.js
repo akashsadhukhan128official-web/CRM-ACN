@@ -4,14 +4,7 @@
 import { db } from './firebase-config.js';
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
-// Real-time listener for Payments
-onSnapshot(query(collection(db, "payments"), orderBy("date", "desc")), (snapshot) => {
-    window.AppState.payments = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
-    if (window.AppState.currentSection === 'payments' || window.AppState.currentSection === 'dashboard') {
-        renderSection(window.AppState.currentSection);
-    }
-});
-// Expose Globals
+// Expose Globals IMMEDIATELY for HTML handlers
 window.renderPayments = renderPayments;
 window.collectPayment = collectPayment;
 window.renderPlans = renderPlans;
@@ -52,6 +45,15 @@ window.changeStaffPassword = async (id, e) => {
         showToast('Password update failed', 'error');
     }
 };
+
+// Real-time listener for Payments
+onSnapshot(query(collection(db, "payments"), orderBy("date", "desc")), (snapshot) => {
+    window.AppState.payments = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
+    if (window.AppState.currentSection === 'payments' || window.AppState.currentSection === 'dashboard') {
+        renderSection(window.AppState.currentSection);
+    }
+});
+
 
 // Real-time listener for Plans
 onSnapshot(collection(db, "plans"), (snapshot) => {

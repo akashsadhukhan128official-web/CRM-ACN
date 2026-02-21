@@ -5,6 +5,17 @@
 import { db } from './firebase-config.js';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
+// Expose Globals IMMEDIATELY
+window.renderCustomersTable = renderCustomersTable;
+window.filterTable = filterTable;
+window.getStatusClass = getStatusClass;
+window.addCustomer = addCustomer;
+window.viewCustomer = viewCustomer;
+window.editCustomer = editCustomer;
+window.confirmDelete = confirmDelete;
+window.deleteCustomer = deleteCustomer;
+window.saveCustomerProfile = saveCustomerProfile;
+
 // Real-time listener for Customers
 onSnapshot(query(collection(db, "customers"), orderBy("id", "desc")), (snapshot) => {
     window.AppState.customers = snapshot.docs.map(doc => ({
@@ -190,7 +201,7 @@ function renderAddCustomer(container) {
         }
     }));
 
-    document.getElementById('add-customer-form').addEventListener('submit', (e) => {
+    document.getElementById('add-customer-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const newCust = Object.fromEntries(fd.entries());
@@ -316,7 +327,7 @@ function editCustomer(id) {
         }
     });
 
-    document.getElementById('edit-customer-form').addEventListener('submit', (e) => {
+    document.getElementById('edit-customer-form').addEventListener('submit', async (e) => {
         e.preventDefault();
 
         if (iIn.value && eIn.value < iIn.value) {
@@ -376,13 +387,4 @@ async function deleteCustomer(id) {
     }
 }
 
-// Expose Globals
-window.renderCustomersTable = renderCustomersTable;
-window.filterTable = filterTable;
-window.getStatusClass = getStatusClass;
-window.addCustomer = addCustomer;
-window.viewCustomer = viewCustomer;
-window.editCustomer = editCustomer;
-window.confirmDelete = confirmDelete;
-window.deleteCustomer = deleteCustomer;
-window.saveCustomerProfile = saveCustomerProfile;
+
