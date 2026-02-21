@@ -116,7 +116,7 @@ function renderCustomersTable(container, options = {}) {
                                             </button>
                                         </div>
                                         <span style="font-size: 0.85rem; font-weight: 600; color: ${payStatus === 'Due' ? '#ef4444' : '#22c55e'}; white-space: nowrap;">
-                                            ${payStatus} ₹${(c.planPrice || 0).toLocaleString()}
+                                            ${payStatus} ₹${(c.amount || 0).toLocaleString()}
                                         </span>
                                     </div>
                                 </td>
@@ -236,11 +236,11 @@ function renderAddCustomer(container) {
 
         // Find selected plan price
         const selectedPlan = window.AppState.plans.find(p => p.name === data.plan);
-        const price = selectedPlan ? (selectedPlan.price || 0) : 0;
+        const amount = selectedPlan ? (selectedPlan.price || 0) : 0;
 
         const newCust = {
             ...data,
-            planPrice: price,
+            amount: amount,
             id: (100 + window.AppState.customers.length + 1).toString(),
             status: 'Active',
             createdAt: new Date().toISOString()
@@ -292,8 +292,8 @@ function viewCustomer(firestoreId) {
                     <p style="margin-top: 4px; color: var(--acn-blue); font-weight: 600;">${c.plan}</p>
                 </div>
                 <div>
-                    <label style="color: var(--text-secondary); font-size: 0.875rem;">Price</label>
-                    <p style="margin-top: 4px; font-weight: 600;">₹${c.planPrice}</p>
+                    <label style="color: var(--text-secondary); font-size: 0.875rem;">Plan Amount</label>
+                    <p style="margin-top: 4px; font-weight: 600;">₹${c.amount || 0}</p>
                 </div>
                 <div>
                     <label style="color: var(--text-secondary); font-size: 0.875rem;">Expiry Date</label>
@@ -342,7 +342,7 @@ function editCustomer(firestoreId) {
                 </div>
                 <div class="form-group">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Plan Amount (₹)</label>
-                    <input type="number" name="planPrice" value="${c.planPrice || 0}" placeholder="Enter amount" required class="glass-input">
+                    <input type="number" name="amount" value="${c.amount ?? c.planPrice ?? c.price ?? 0}" placeholder="Enter amount" required class="glass-input">
                 </div>
                 <div class="form-group" style="grid-column: span 2;">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Address</label>
@@ -388,7 +388,7 @@ function editCustomer(firestoreId) {
 
         const fd = new FormData(e.target);
         const data = Object.fromEntries(fd.entries());
-        data.planPrice = parseFloat(data.planPrice) || 0;
+        data.amount = parseFloat(data.amount) || 0;
 
         // Auto Status Update Logic
         const today = new Date().toISOString().split('T')[0];
@@ -468,7 +468,7 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
             await addDoc(collection(db, "payments"), {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                 customer: customerName,
-                amount: customer.planPrice || 0,
+                amount: customer.amount || 0,
                 date: today,
                 method: '-',
                 status: 'Due',
@@ -491,7 +491,7 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
             await addDoc(collection(db, "payments"), {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                 customer: customerName,
-                amount: customer.planPrice || 0,
+                amount: customer.amount || 0,
                 date: today,
                 method: '-',
                 status: 'Paid',

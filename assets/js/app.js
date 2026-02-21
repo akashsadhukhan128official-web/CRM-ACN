@@ -123,20 +123,21 @@ function initApp() {
 function updateCustomerStatuses() {
     const today = new Date().toISOString().split('T')[0];
     window.AppState.customers.forEach(async c => {
-        // Data Migration: Ensure expiryDate and planPrice exist
+        // Data Migration: Unified SSoT field 'amount'
+        const currentAmount = c.amount ?? c.planPrice ?? c.price ?? 0;
         const currentExpiry = c.expiryDate || c.expiry;
-        const currentPrice = c.planPrice || c.price || 0;
 
         let needsUpdate = false;
         const updateData = {};
 
-        if (!c.expiryDate && c.expiry) {
-            updateData.expiryDate = c.expiry;
+        // Migrate to amount if missing
+        if (c.amount === undefined || c.amount === null) {
+            updateData.amount = currentAmount;
             needsUpdate = true;
         }
 
-        if (!c.planPrice && (c.price || c.price === 0)) {
-            updateData.planPrice = c.price;
+        if (!c.expiryDate && c.expiry) {
+            updateData.expiryDate = c.expiry;
             needsUpdate = true;
         }
 
@@ -146,7 +147,7 @@ function updateCustomerStatuses() {
             updateData.paymentStatus = 'Due';
             needsUpdate = true;
 
-            // Automated Billing: Create "Due" entry if it doesn't exist for this billing cycle (approx 30 days)
+            // Automated Billing: Create "Due" entry using customer.amount
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const dateLimit = thirtyDaysAgo.toISOString().split('T')[0];
@@ -164,7 +165,7 @@ function updateCustomerStatuses() {
                 const newDue = {
                     id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                     customer: c.name,
-                    amount: currentPrice,
+                    amount: currentAmount,
                     date: today,
                     method: '-',
                     status: 'Due',
@@ -173,7 +174,7 @@ function updateCustomerStatuses() {
                     createdAt: new Date().toISOString()
                 };
                 await addDoc(collection(db, "payments"), newDue);
-                console.log(`Automated billing created for ${c.name}`);
+                console.log(`Automated billing created for ${c.name} with amount ${currentAmount}`);
             }
         } else if (currentExpiry >= today && c.status === 'Expired') {
             c.status = 'Active';

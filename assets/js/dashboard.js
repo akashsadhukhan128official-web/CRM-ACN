@@ -16,11 +16,8 @@ function renderDashboard(container) {
         .filter(p => p.date.startsWith(thisMonth) && p.status === 'Paid')
         .reduce((sum, p) => sum + p.amount, 0);
 
-    const today = new Date();
-    const dueCustomers = window.AppState.customers.filter(c =>
-        c.paymentStatus === 'Due' || new Date(c.expiryDate) <= today
-    );
-    const totalDueAmount = dueCustomers.reduce((sum, c) => sum + (c.planPrice || 0), 0);
+    const dueCustomers = window.AppState.customers.filter(c => c.paymentStatus === 'Due');
+    const totalDueAmount = dueCustomers.reduce((sum, c) => sum + (c.amount || 0), 0);
     const dueCount = dueCustomers.length;
     const topDue = dueCustomers.slice(0, 3);
     const moreCount = dueCustomers.length > 3 ? dueCustomers.length - 3 : 0;

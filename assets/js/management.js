@@ -122,13 +122,14 @@ function collectPayment() {
             <form id="payment-form" style="display: flex; flex-direction: column; gap: 20px;">
                 <div>
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Select Customer</label>
-                    <select name="customer" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
-                        ${window.AppState.customers.map(c => `<option value="${c.name}">${c.name} (#${c.id})</option>`).join('')}
+                    <select name="customer" id="payment-customer-select" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
+                        <option value="">Choose Customer...</option>
+                        ${window.AppState.customers.map(c => `<option value="${c.name}" data-amount="${c.amount ?? c.planPrice ?? 0}">${c.name} (#${c.id})</option>`).join('')}
                     </select>
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Payment Amount</label>
-                    <input type="number" name="amount" placeholder="₹" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
+                    <input type="number" name="amount" id="payment-amount-input" placeholder="₹" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Method</label>
@@ -145,6 +146,16 @@ function collectPayment() {
             </form>
         </div>
     `);
+
+    const select = document.getElementById('payment-customer-select');
+    const amountInput = document.getElementById('payment-amount-input');
+
+    select.addEventListener('change', () => {
+        const option = select.options[select.selectedIndex];
+        if (option.dataset.amount) {
+            amountInput.value = option.dataset.amount;
+        }
+    });
 
     document.getElementById('payment-form').addEventListener('submit', async (e) => {
         e.preventDefault();
