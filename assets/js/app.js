@@ -59,25 +59,12 @@ function initApp() {
 
         if (user) {
             try {
-                // Verify user in "staff" collection
-                const staffDoc = await getDoc(doc(db, "staff", user.uid));
+                const staffDocRef = doc(db, "staff", user.uid);
+                const staffDoc = await getDoc(staffDocRef);
 
-                if (!staffDoc.exists()) {
-                    // Check if they are the primary admin (fallback for bootstrap)
-                    if (user.email === 'admin@acn.com') {
-                        window.AppState.isAuthenticated = true;
-                        window.AppState.user = {
-                            name: 'Super Admin',
-                            role: 'Admin',
-                            accessLevel: 'Full'
-                        };
-                        await checkAndSeedDatabase(user.uid);
-                    } else {
-                        showToast('Access Denied: Not a staff member', 'error');
-                        await signOut(auth);
-                        return;
-                    }
-                } else {
+                let isAuthorized = false;
+
+                if (staffDoc.exists()) {
                     const data = staffDoc.data();
                     window.AppState.isAuthenticated = true;
                     window.AppState.user = {
@@ -86,7 +73,41 @@ function initApp() {
                         role: data.role,
                         accessLevel: data.accessLevel
                     };
+                    isAuthorized = true;
                     await checkAndSeedDatabase(user.uid);
+                } else {
+                    // Check if the staff collection is completely empty (fresh bootstrap)
+                    const staffSnap = await getDocs(collection(db, "staff"));
+                    if (staffSnap.empty || user.email === 'admin@acn.com') {
+                        // Bootstrap this first user as Super Admin
+                        const adminName = user.email.split('@')[0];
+                        const capitalizedName = adminName.charAt(0).toUpperCase() + adminName.slice(1);
+                        
+                        await setDoc(staffDocRef, {
+                            fullName: capitalizedName + ' (Admin)',
+                            role: 'Super Admin',
+                            accessLevel: 'Full',
+                            status: 'Online',
+                            email: user.email,
+                            createdAt: serverTimestamp()
+                        });
+
+                        window.AppState.isAuthenticated = true;
+                        window.AppState.user = {
+                            uid: user.uid,
+                            name: capitalizedName + ' (Admin)',
+                            role: 'Super Admin',
+                            accessLevel: 'Full'
+                        };
+                        isAuthorized = true;
+                        await checkAndSeedDatabase(user.uid);
+                    }
+                }
+
+                if (!isAuthorized) {
+                    showToast('Access Denied: Not a staff member', 'error');
+                    await signOut(auth);
+                    return;
                 }
 
                 if (overlay) overlay.style.display = 'none';
