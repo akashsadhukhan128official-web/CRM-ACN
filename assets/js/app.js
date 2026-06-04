@@ -3,7 +3,7 @@
  * Handles State, Routing, UI Feedback, and Navigation
  */
 import { auth, db } from './firebase-config.js';
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
 import { collection, addDoc, query, where, getDocs, limit, doc, getDoc, updateDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
 // Global App State
@@ -286,7 +286,7 @@ function setupEventListeners() {
             const password = document.getElementById('admin-password').value;
 
             if (!email || !password) {
-                showToast('Please enter both ID and Password', 'error');
+                showToast('Please enter both Email and Password', 'error');
                 return;
             }
 
@@ -298,16 +298,7 @@ function setupEventListeners() {
             } catch (error) {
                 console.error("Login Error:", error.code, error.message);
                 if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-                    showToast('Wait... Registering this as your admin account...', 'info');
-                    // Fallback to auto-registration if it's the first time
-                    try {
-                        const loginEmail = email.includes('@') ? email : `${email}@acn.com`;
-                        await createUserWithEmailAndPassword(auth, loginEmail, password);
-                        showToast('Admin Account Created & Logged In', 'success');
-                    } catch (regErr) {
-                        showToast('Invalid credentials. Check your Password.', 'error');
-                        console.error("Registration Fallback Error:", regErr);
-                    }
+                    showToast('Invalid email or password. Please try again.', 'error');
                 } else if (error.code === 'auth/operation-not-allowed') {
                     showToast('Login provider not enabled in Firebase Console.', 'error');
                 } else {
@@ -317,19 +308,22 @@ function setupEventListeners() {
         });
     }
 
-    // Auto-Setup Helper Logic (Optional link in UI)
-    const setupBtn = document.getElementById('setup-admin-link');
-    if (setupBtn) {
-        setupBtn.addEventListener('click', async (e) => {
+    // Forgot Password Logic
+    const forgotBtn = document.getElementById('forgot-password-link');
+    if (forgotBtn) {
+        forgotBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             const email = document.getElementById('admin-id').value;
-            const password = document.getElementById('admin-password').value;
+            if (!email) {
+                showToast('Please enter your email address first', 'error');
+                return;
+            }
+            const loginEmail = email.includes('@') ? email : `${email}@acn.com`;
             try {
-                const loginEmail = email.includes('@') ? email : `${email}@acn.com`;
-                await createUserWithEmailAndPassword(auth, loginEmail, password);
-                showToast('First Admin setup successfully!', 'success');
+                await sendPasswordResetEmail(auth, loginEmail);
+                showToast('Password reset link sent to ' + loginEmail, 'success');
             } catch (error) {
-                showToast('Project already has an admin or check Firebase console.', 'error');
+                showToast('Failed to send reset link: ' + error.message, 'error');
             }
         });
     }
