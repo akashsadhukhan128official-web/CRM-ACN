@@ -17,17 +17,22 @@ window.deleteCustomer = deleteCustomer;
 window.togglePaymentStatus = togglePaymentStatus;
 
 // Real-time listener for Customers
-onSnapshot(query(collection(db, "customers"), orderBy("id", "desc")), (snapshot) => {
+onSnapshot(collection(db, "customers"), (snapshot) => {
     window.AppState.customers = snapshot.docs.map(doc => ({
         firestoreId: doc.id,
         ...doc.data()
     }));
+    // Sort locally by ID descending
+    window.AppState.customers.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
+
     // Trigger re-render if we are in customers or dashboard
     if (window.AppState.currentSection === 'all-customers' ||
         window.AppState.currentSection.includes('customers') ||
         window.AppState.currentSection === 'dashboard') {
         renderSection(window.AppState.currentSection);
     }
+}, (error) => {
+    console.error("Customers onSnapshot error:", error);
 });
 
 function renderCustomersTable(container, options = {}) {

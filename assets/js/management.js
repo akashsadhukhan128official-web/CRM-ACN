@@ -26,11 +26,16 @@ window.deletePayment = deletePayment;
 window.confirmDeletePayment = confirmDeletePayment;
 window.addStaff = addStaff;
 // Real-time listener for Payments
-onSnapshot(query(collection(db, "payments"), orderBy("date", "desc")), (snapshot) => {
+onSnapshot(collection(db, "payments"), (snapshot) => {
     window.AppState.payments = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
+    // Sort locally by date descending
+    window.AppState.payments.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
     if (['payments', 'dashboard', 'all-customers', 'expiring-soon'].includes(window.AppState.currentSection)) {
         renderSection(window.AppState.currentSection);
     }
+}, (error) => {
+    console.error("Payments onSnapshot error:", error);
 });
 
 
