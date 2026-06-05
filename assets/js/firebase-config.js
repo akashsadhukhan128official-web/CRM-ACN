@@ -5,14 +5,13 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-analytics.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDMKzg3d9-e7twvGHq2xjMUOwmM9uEqQqY",
-  authDomain: "acn-landing-login.firebaseapp.com",
-  databaseURL: "https://acn-landing-login-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "acn-landing-login",
-  storageBucket: "acn-landing-login.firebasestorage.app",
-  messagingSenderId: "398411390456",
-  appId: "1:398411390456:web:522a91458be1e554a30a0d",
-  measurementId: "G-K655SL1GV7"
+  apiKey: "AIzaSyDLUO9eI4dymvkRhoS7KamZe-N3nqQiEeY",
+  authDomain: "crm-acn.firebaseapp.com",
+  projectId: "crm-acn",
+  storageBucket: "crm-acn.firebasestorage.app",
+  messagingSenderId: "532398336692",
+  appId: "1:532398336692:web:02141f59fdd90d489a85e1",
+  measurementId: "G-V5N9CXL58N"
 };
 
 // Initialize Firebase
