@@ -131,8 +131,15 @@ function initApp() {
                 window.AppState.staffUnsub = null;
             }
 
+            // Clear AppState data on logout
+            window.AppState.customers = [];
+            window.AppState.plans = [];
+            window.AppState.payments = [];
+            window.AppState.staff = [];
+            window.AppState.initialized = false;
             window.AppState.isAuthenticated = false;
             window.AppState.currentSection = 'login';
+
             if (overlay) {
                 overlay.style.display = 'flex';
                 overlay.classList.remove('login-hidden');
