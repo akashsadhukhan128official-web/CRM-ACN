@@ -943,7 +943,7 @@ function exportCustomersToExcel() {
             };
         });
 
-        const rawTitle = window.AppState.currentCustomerTitle || 'Customers';
+        const rawTitle = (tableRows && tableRows.length > 0 && window.AppState.currentCustomerTitle) ? window.AppState.currentCustomerTitle : (window.AppState.currentCustomerTitle || 'All_Customers');
         const cleanTitle = rawTitle.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
         const fileName = `ACN_${cleanTitle}_${todayStr}.xlsx`;
 
