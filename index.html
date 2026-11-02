@@ -132,6 +132,12 @@
                     </a>
                 </div>
                 <div class="nav-item">
+                    <a href="#" class="nav-link" onclick="if(window.exportCustomersToExcel) exportCustomersToExcel(); else showToast('Loading export module...', 'info'); return false;" style="color: #16a34a; font-weight: 600;">
+                        <i class="lucide-download"></i>
+                        <span>Export with Excel</span>
+                    </a>
+                </div>
+                <div class="nav-item">
                     <a href="#" class="nav-link" data-section="staff">
                         <i class="lucide-shield-check"></i>
                         <span>Staff Management</span>
