@@ -36,7 +36,7 @@ window.initManagementListeners = function() {
         // Sort locally by date descending
         window.AppState.payments.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-        if (['payments', 'dashboard', 'all-customers', 'expiring-soon'].includes(window.AppState.currentSection)) {
+        if (['payments', 'dashboard', 'all-customers', 'expiring-soon', 'expiring-today', 'expiring-tomorrow', 'expired-yesterday'].includes(window.AppState.currentSection)) {
             renderSection(window.AppState.currentSection);
         }
     }, (error) => {
@@ -64,9 +64,19 @@ window.initManagementListeners = function() {
 
 function renderPayments(container, params = {}) {
     const isToday = params.module === 'today';
-    const title = isToday ? "Today's Collection" : "Payment Ledger";
+    const filter = params.filter || 'all';
+    const title = isToday ? "Today's Collection" : (filter === 'Due' ? "Outstanding Due Payments" : "Payment Ledger");
 
-    // Mock data filtering for "today"
+    let displayPayments = [...window.AppState.payments];
+    if (isToday) {
+        const todayStr = window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0];
+        displayPayments = displayPayments.filter(p => p.date === todayStr);
+    } else if (filter === 'Due') {
+        displayPayments = displayPayments.filter(p => p.status === 'Due');
+    } else if (filter === 'Paid') {
+        displayPayments = displayPayments.filter(p => p.status === 'Paid');
+    }
+
     const paymentsHTML = `
         <div class="glass-card" style="padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
@@ -87,11 +97,11 @@ function renderPayments(container, params = {}) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${window.AppState.payments.filter(p => !isToday || p.date === new Date().toISOString().split('T')[0]).map(p => `
+                        ${displayPayments.map(p => `
                             <tr>
                                 <td>#${p.id}</td>
                                 <td>${p.customer}</td>
-                                <td>₹${(p.amount || 0).toLocaleString()}</td>
+                                <td>₹${(p.amount || 0).toLocaleString()}${p.months && p.months > 1 ? ` (${p.months} Months)` : ''}</td>
                                 <td>${p.date}</td>
                                 <td>${p.method}</td>
                                 <td>
@@ -178,7 +188,7 @@ function collectPayment() {
             id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
             customer: data.customer,
             amount: parseInt(data.amount),
-            date: new Date().toISOString().split('T')[0],
+            date: window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0],
             method: data.method,
             status: 'Paid',
             paid: true
@@ -189,7 +199,8 @@ function collectPayment() {
             const customer = window.AppState.customers.find(c => c.name === data.customer);
             if (customer && customer.firestoreId) {
                 await updateDoc(doc(db, "customers", customer.firestoreId), {
-                    paymentStatus: 'Paid'
+                    paymentStatus: 'Paid',
+                    dueMonths: 0
                 });
             }
 
@@ -225,7 +236,7 @@ async function markAsPaid(firestoreId) {
                 </div>
                 <div class="form-group">
                     <label class="modal-label">Date of Payment</label>
-                    <input type="date" name="date" value="${new Date().toISOString().split('T')[0]}" required class="glass-input">
+                    <input type="date" name="date" value="${window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0]}" required class="glass-input">
                 </div>
                 <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
                     <button type="button" class="glass-button" onclick="closeModal()">Cancel</button>
@@ -245,7 +256,8 @@ async function markAsPaid(firestoreId) {
             const customer = window.AppState.customers.find(c => c.name === p.customer);
             if (customer && customer.firestoreId) {
                 await updateDoc(doc(db, "customers", customer.firestoreId), {
-                    paymentStatus: 'Paid'
+                    paymentStatus: 'Paid',
+                    dueMonths: 0
                 });
             }
 

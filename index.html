@@ -81,9 +81,33 @@
                     </a>
                 </div>
                 <div class="nav-item">
+                    <a href="#" class="nav-link unpaid" data-section="unpaid-recharges">
+                        <i class="lucide-wallet"></i>
+                        <span>Unpaid Recharges</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-section="expiring-today">
+                        <i class="lucide-alert-circle"></i>
+                        <span>Expiring Today</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-section="expiring-tomorrow">
+                        <i class="lucide-bell"></i>
+                        <span>Expiring Tomorrow</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-section="expired-yesterday">
+                        <i class="lucide-calendar-x"></i>
+                        <span>Expired Yesterday</span>
+                    </a>
+                </div>
+                <div class="nav-item">
                     <a href="#" class="nav-link" data-section="expiring-soon">
                         <i class="lucide-clock"></i>
-                        <span>Expiring Soon</span>
+                        <span>Expiring Soon (7d)</span>
                     </a>
                 </div>
                 <div class="nav-item">
@@ -165,10 +189,11 @@
 
     <!-- Scripts -->
     <!-- Core Logic -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script type="module" src="assets/js/firebase-config.js?v=2.1"></script>
     <script type="module" src="assets/js/app.js?v=2.1"></script>
     <script type="module" src="assets/js/dashboard.js?v=2.1"></script>
-    <script type="module" src="assets/js/customers.js?v=2.1"></script>
+    <script type="module" src="assets/js/customers.js?v=2.2"></script>
     <script type="module" src="assets/js/management.js?v=2.1"></script>
 </body>
 

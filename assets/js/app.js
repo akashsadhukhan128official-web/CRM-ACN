@@ -6,6 +6,15 @@ import { auth, db } from './firebase-config.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-auth.js";
 import { collection, addDoc, query, where, getDocs, limit, doc, getDoc, updateDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore.js";
 
+// Timezone-safe local date string generator (YYYY-MM-DD)
+function getLocalDateString(d = new Date()) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+window.getLocalDateString = getLocalDateString;
+
 // Global App State
 window.AppState = {
     customers: [],
@@ -154,12 +163,14 @@ function initApp() {
     setInterval(() => {
         updateCustomerStatuses();
         if (window.AppState.currentSection === 'dashboard') renderSection('dashboard');
-        if (window.AppState.currentSection === 'expiring-soon') renderSection('expiring-soon');
+        if (['expiring-soon', 'expiring-today', 'expiring-tomorrow', 'expired-yesterday', 'unpaid-recharges'].includes(window.AppState.currentSection)) {
+            renderSection(window.AppState.currentSection);
+        }
     }, 600000);
 }
 
 function updateCustomerStatuses() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     window.AppState.customers.forEach(async c => {
         // Data Migration: Unified SSoT field 'amount'
         const currentAmount = c.amount ?? c.planPrice ?? c.price ?? 0;
@@ -183,12 +194,13 @@ function updateCustomerStatuses() {
             c.status = 'Expired';
             updateData.status = 'Expired';
             updateData.paymentStatus = 'Due';
+            updateData.dueMonths = (c.dueMonths || 0) + 1;
             needsUpdate = true;
 
             // Automated Billing: Create "Due" entry using customer.amount
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const dateLimit = thirtyDaysAgo.toISOString().split('T')[0];
+            const dateLimit = getLocalDateString(thirtyDaysAgo);
 
             const q = query(
                 collection(db, "payments"),
@@ -204,6 +216,7 @@ function updateCustomerStatuses() {
                     id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                     customer: c.name,
                     amount: currentAmount,
+                    months: 1,
                     date: today,
                     method: '-',
                     status: 'Due',
@@ -226,6 +239,14 @@ function updateCustomerStatuses() {
     });
 }
 
+function getCustomerDisplayStatus(c) {
+    const today = getLocalDateString();
+    const expiry = c.expiryDate || c.expiry;
+    if (c.status === 'Suspended') return 'Suspended';
+    if (expiry && expiry < today) return 'Expired';
+    return c.status || 'Active';
+}
+
 /**
  * Utility: Calculate Days Left & Formatting
  * @param {string} dateStr - Expiry date
@@ -236,7 +257,14 @@ function getDaysLeft(dateStr) {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const exp = new Date(dateStr);
+
+    let exp;
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        exp = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else {
+        exp = new Date(dateStr);
+    }
     exp.setHours(0, 0, 0, 0);
 
     if (isNaN(exp.getTime())) return { text: '-', color: 'var(--text-secondary)' };
@@ -244,10 +272,12 @@ function getDaysLeft(dateStr) {
     const diffTime = exp - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays > 0) {
-        return { text: `${diffDays} Day${diffDays > 1 ? 's' : ''} Left`, color: 'var(--acn-orange)' };
+    if (diffDays > 1) {
+        return { text: `${diffDays} Days Left`, color: 'var(--acn-orange)' };
+    } else if (diffDays === 1) {
+        return { text: 'Expires Tomorrow', color: '#f59e0b' };
     } else if (diffDays === 0) {
-        return { text: 'Expires Today', color: 'var(--acn-blue)' };
+        return { text: 'Expires Today', color: 'var(--acn-orange)' };
     } else {
         const absDays = Math.abs(diffDays);
         return { text: `Expired ${absDays} Day${absDays > 1 ? 's' : ''} Ago`, color: '#ef4444' };
@@ -445,6 +475,22 @@ function renderSection(sectionId) {
                     if (window.renderCustomersTable) renderCustomersTable(area, { filter: window.AppState.currentFilter });
                     else throw new Error("renderCustomersTable not found");
                     break;
+                case 'unpaid-recharges':
+                    if (window.renderCustomersTable) renderCustomersTable(area, { filter: params.filter || 'unpaid-recharges' });
+                    else throw new Error("renderCustomersTable not found");
+                    break;
+                case 'expiring-today':
+                    if (window.renderCustomersTable) renderCustomersTable(area, { filter: 'expiring-today' });
+                    else throw new Error("renderCustomersTable not found");
+                    break;
+                case 'expiring-tomorrow':
+                    if (window.renderCustomersTable) renderCustomersTable(area, { filter: 'expiring-tomorrow' });
+                    else throw new Error("renderCustomersTable not found");
+                    break;
+                case 'expired-yesterday':
+                    if (window.renderCustomersTable) renderCustomersTable(area, { filter: 'expired-yesterday' });
+                    else throw new Error("renderCustomersTable not found");
+                    break;
                 case 'expiring-soon':
                     if (window.renderCustomersTable) renderCustomersTable(area, { filter: 'expiring' });
                     else throw new Error("renderCustomersTable not found");
@@ -604,6 +650,8 @@ window.showLogoutConfirmation = showLogoutConfirmation;
 window.logout = logout;
 window.showToast = showToast;
 window.getDaysLeft = getDaysLeft;
+window.updateCustomerStatuses = updateCustomerStatuses;
+window.getCustomerDisplayStatus = getCustomerDisplayStatus;
 
 async function checkAndSeedDatabase(uid) {
     try {
@@ -644,14 +692,14 @@ async function checkAndSeedDatabase(uid) {
             const formatOffsetDate = (daysOffset) => {
                 const d = new Date(today);
                 d.setDate(today.getDate() + daysOffset);
-                return d.toISOString().split('T')[0];
+                return getLocalDateString(d);
             };
 
             const defaultCustomers = [
                 { id: '101', name: 'Alen Walker', phone: '9876543210', address: '123 Blue St', plan: '50 Mbps Unlimited', amount: 499, install: formatOffsetDate(-10), expiryDate: formatOffsetDate(20), mac: 'AA:BB:CC:DD:EE:01', status: 'Active', notes: '', paymentStatus: 'Paid', expiry: formatOffsetDate(20) },
-                { id: '102', name: 'John Doe', phone: '8765432109', address: '456 Orange Ave', plan: '100 Mbps Pro', amount: 799, install: formatOffsetDate(-13), expiryDate: formatOffsetDate(17), mac: 'AA:BB:CC:DD:EE:02', status: 'Active', notes: '', paymentStatus: 'Paid', expiry: formatOffsetDate(17) },
+                { id: '102', name: 'John Doe', phone: '8765432109', address: '456 Orange Ave', plan: '100 Mbps Pro', amount: 799, install: formatOffsetDate(-13), expiryDate: formatOffsetDate(0), mac: 'AA:BB:CC:DD:EE:02', status: 'Active', notes: '', paymentStatus: 'Paid', expiry: formatOffsetDate(0) },
                 { id: '103', name: 'Jane Smith', phone: '7654321098', address: '789 Link Rd', plan: '50 Mbps Unlimited', amount: 499, install: formatOffsetDate(-35), expiryDate: formatOffsetDate(-5), mac: 'AA:BB:CC:DD:EE:03', status: 'Expired', notes: '', paymentStatus: 'Due', expiry: formatOffsetDate(-5) },
-                { id: '104', name: 'Michael Ross', phone: '6543210987', address: '101 Signal Way', plan: '200 Mbps Ultra', amount: 1299, install: formatOffsetDate(-9), expiryDate: formatOffsetDate(21), mac: 'AA:BB:CC:DD:EE:04', status: 'Active', notes: '', paymentStatus: 'Paid', expiry: formatOffsetDate(21) },
+                { id: '104', name: 'Michael Ross', phone: '6543210987', address: '101 Signal Way', plan: '200 Mbps Ultra', amount: 1299, install: formatOffsetDate(-29), expiryDate: formatOffsetDate(1), mac: 'AA:BB:CC:DD:EE:04', status: 'Active', notes: '', paymentStatus: 'Paid', expiry: formatOffsetDate(1) },
                 { id: '105', name: 'Rachel Zane', phone: '5432109876', address: '202 Fiber Blvd', plan: '100 Mbps Pro', amount: 799, install: formatOffsetDate(-26), expiryDate: formatOffsetDate(4), mac: 'AA:BB:CC:DD:EE:05', status: 'Active', notes: '', paymentStatus: 'Paid', expiry: formatOffsetDate(4) }
             ];
             for (const c of defaultCustomers) {
@@ -667,7 +715,7 @@ async function checkAndSeedDatabase(uid) {
             const formatOffsetDate = (daysOffset) => {
                 const d = new Date(today);
                 d.setDate(today.getDate() + daysOffset);
-                return d.toISOString().split('T')[0];
+                return getLocalDateString(d);
             };
 
             const defaultPayments = [

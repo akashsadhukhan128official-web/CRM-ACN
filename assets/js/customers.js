@@ -15,6 +15,16 @@ window.editCustomer = editCustomer;
 window.confirmDelete = confirmDelete;
 window.deleteCustomer = deleteCustomer;
 window.togglePaymentStatus = togglePaymentStatus;
+window.exportCustomersToExcel = exportCustomersToExcel;
+
+const getCustomerDisplayStatus = (c) => {
+    if (window.getCustomerDisplayStatus) return window.getCustomerDisplayStatus(c);
+    const today = window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0];
+    const expiry = c.expiryDate || c.expiry;
+    if (c.status === 'Suspended') return 'Suspended';
+    if (expiry && expiry < today) return 'Expired';
+    return c.status || 'Active';
+};
 
 // Real-time listener initializer for Customers
 window.initCustomersListener = function() {
@@ -29,10 +39,14 @@ window.initCustomersListener = function() {
         // Sort locally by ID descending
         window.AppState.customers.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
 
+        // Call updateCustomerStatuses if available to update any newly expired customer records in the DB
+        if (typeof window.updateCustomerStatuses === 'function') {
+            window.updateCustomerStatuses();
+        }
+
         // Trigger re-render if we are in customers or dashboard
-        if (window.AppState.currentSection === 'all-customers' ||
-            window.AppState.currentSection.includes('customers') ||
-            window.AppState.currentSection === 'dashboard') {
+        if (['all-customers', 'dashboard', 'expiring-soon', 'expiring-today', 'expiring-tomorrow', 'expired-yesterday', 'unpaid-recharges'].includes(window.AppState.currentSection) ||
+            window.AppState.currentSection.includes('customers')) {
             renderSection(window.AppState.currentSection);
         }
     }, (error) => {
@@ -46,30 +60,97 @@ function renderCustomersTable(container, options = {}) {
     let title = 'All Customers';
 
     // Apply Filters
+    const todayStr = window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0];
+
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = window.getLocalDateString ? window.getLocalDateString(yesterdayDate) : yesterdayDate.toISOString().split('T')[0];
+
+    const tomorrowDate = new Date();
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowStr = window.getLocalDateString ? window.getLocalDateString(tomorrowDate) : tomorrowDate.toISOString().split('T')[0];
+
+    const sevenDaysLaterDate = new Date();
+    sevenDaysLaterDate.setDate(sevenDaysLaterDate.getDate() + 7);
+    const sevenDaysLaterStr = window.getLocalDateString ? window.getLocalDateString(sevenDaysLaterDate) : sevenDaysLaterDate.toISOString().split('T')[0];
+
     if (filter === 'expiring') {
-        const today = new Date();
-        const sevenDaysLater = new Date();
-        sevenDaysLater.setDate(today.getDate() + 7);
         displayCustomers = displayCustomers.filter(c => {
-            const exp = new Date(c.expiry);
-            return exp >= today && exp <= sevenDaysLater;
+            const exp = c.expiryDate || c.expiry;
+            return exp && exp > tomorrowStr && exp <= sevenDaysLaterStr;
         });
         title = 'Expiring Soon (Next 7 Days)';
+    } else if (filter === 'expiring-today') {
+        displayCustomers = displayCustomers.filter(c => {
+            const exp = c.expiryDate || c.expiry;
+            return exp && exp === todayStr;
+        });
+        title = 'Expiring Today';
+    } else if (filter === 'expiring-tomorrow') {
+        displayCustomers = displayCustomers.filter(c => {
+            const exp = c.expiryDate || c.expiry;
+            return exp && exp === tomorrowStr;
+        });
+        title = 'Expiring Tomorrow';
+    } else if (filter === 'expired-yesterday') {
+        displayCustomers = displayCustomers.filter(c => {
+            const exp = c.expiryDate || c.expiry;
+            return exp && exp === yesterdayStr;
+        });
+        title = 'Expired Yesterday';
     } else if (filter === 'Active' || filter === 'Expired') {
-        displayCustomers = displayCustomers.filter(c => c.status === filter);
+        displayCustomers = displayCustomers.filter(c => getCustomerDisplayStatus(c) === filter);
         title = `${filter} Customers`;
+    } else if (filter === 'unpaid-recharges') {
+        displayCustomers = displayCustomers.filter(c => {
+            const currentExpiry = c.expiryDate || c.expiry || null;
+            const payStatus = c.paymentStatus || (currentExpiry && currentExpiry < todayStr ? 'Due' : 'Paid');
+            return payStatus === 'Due';
+        });
+        title = 'Recharges Done but Payment Due';
+    } else if (filter === 'unpaid-recharges-2m') {
+        displayCustomers = displayCustomers.filter(c => {
+            const currentExpiry = c.expiryDate || c.expiry || null;
+            const payStatus = c.paymentStatus || (currentExpiry && currentExpiry < todayStr ? 'Due' : 'Paid');
+            return payStatus === 'Due' && (c.dueMonths || 1) === 2;
+        });
+        title = '2 Months Due Customers';
+    } else if (filter === 'unpaid-recharges-more-2m') {
+        displayCustomers = displayCustomers.filter(c => {
+            const currentExpiry = c.expiryDate || c.expiry || null;
+            const payStatus = c.paymentStatus || (currentExpiry && currentExpiry < todayStr ? 'Due' : 'Paid');
+            return payStatus === 'Due' && (c.dueMonths || 1) > 2;
+        });
+        title = '2+ Months Due Customers';
     }
 
-    // Sorting: Nearest Expiry first for "expiring" filter
-    if (filter === 'expiring') {
-        displayCustomers.sort((a, b) => new Date(a.expiry) - new Date(b.expiry));
+    // Sorting: Nearest Expiry first for expiring filters
+    if (['expiring', 'expiring-today', 'expiring-tomorrow', 'expired-yesterday'].includes(filter)) {
+        displayCustomers.sort((a, b) => {
+            const expA = a.expiryDate || a.expiry || '';
+            const expB = b.expiryDate || b.expiry || '';
+            return expA.localeCompare(expB);
+        });
     }
+
+    window.AppState.currentCustomerList = displayCustomers;
+    window.AppState.currentCustomerTitle = title;
 
     const tableHTML = `
         <div class="glass-card" style="padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h3>${title}</h3>
-                <div style="display: flex; gap: 12px;">
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                    <button class="glass-button" onclick="exportCustomersToExcel()" title="Export with Excel (All fields as entered)" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(34, 197, 94, 0.12); color: #16a34a; border: 1px solid rgba(34, 197, 94, 0.35); font-weight: 600; padding: 9px 16px; border-radius: 12px; cursor: pointer; transition: all 0.2s ease;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="8" y1="13" x2="16" y2="13"></line>
+                            <line x1="8" y1="17" x2="16" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <span>Export with Excel</span>
+                    </button>
                     ${isReadOnly() ? '' : `
                     <button class="glass-button primary" onclick="navigateTo('add-customer')">
                         <i class="lucide-user-plus"></i> Add New
@@ -100,7 +181,10 @@ function renderCustomersTable(container, options = {}) {
                         ${displayCustomers.map(c => {
         const currentExpiry = c.expiryDate || c.expiry || null;
         const days = getDaysLeft(currentExpiry);
-        const payStatus = c.paymentStatus || (currentExpiry && new Date(currentExpiry) <= new Date() ? 'Due' : 'Paid');
+        const payStatus = c.paymentStatus || (currentExpiry && currentExpiry < todayStr ? 'Due' : 'Paid');
+        const displayStatus = getCustomerDisplayStatus(c);
+        const displayMonths = c.dueMonths || 1;
+        const displayAmount = (c.amount || 0) * (payStatus === 'Due' ? displayMonths : 1);
 
         return `
                             <tr data-id="${c.id}">
@@ -110,7 +194,7 @@ function renderCustomersTable(container, options = {}) {
                                 <td>${c.plan}</td>
                                 <td>${currentExpiry || '-'}</td>
                                 <td style="color: ${days.color}; font-weight: 600;">${days.text}</td>
-                                <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
+                                <td><span class="status-badge ${getStatusClass(displayStatus)}">${displayStatus}</span></td>
                                 <td>
                                     <div style="display: flex; align-items: center; gap: 12px;">
                                         <div style="display: flex; gap: 4px; background: rgba(0,0,0,0.05); padding: 2px; border-radius: 20px; width: fit-content;">
@@ -126,7 +210,7 @@ function renderCustomersTable(container, options = {}) {
                                             </button>
                                         </div>
                                         <span style="font-size: 0.85rem; font-weight: 600; color: ${payStatus === 'Due' ? '#ef4444' : '#22c55e'}; white-space: nowrap;">
-                                            ${payStatus} ₹${(c.amount || 0).toLocaleString()}
+                                            ${payStatus} ${payStatus === 'Due' ? `(${displayMonths}M due)` : ''} ₹${displayAmount.toLocaleString()}
                                         </span>
                                     </div>
                                 </td>
@@ -212,6 +296,23 @@ function renderAddCustomer(container) {
                     </select>
                 </div>
                 <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Select Duration</label>
+                    <select id="duration-select" name="duration" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.4);">
+                        <option value="1">1 Month</option>
+                        <option value="2">2 Months</option>
+                        <option value="3">3 Months</option>
+                        <option value="4">4 Months</option>
+                        <option value="5">5 Months</option>
+                        <option value="6">6 Months</option>
+                        <option value="7">7 Months</option>
+                        <option value="8">8 Months</option>
+                        <option value="9">9 Months</option>
+                        <option value="10">10 Months</option>
+                        <option value="11">11 Months</option>
+                        <option value="12">12 Months</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem;">Expiry Date (Calculated)</label>
                     <input type="date" name="expiryDate" id="expiry-date" readonly style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(var(--acn-blue-rgb), 0.2); background: rgba(var(--acn-blue-rgb), 0.05); cursor: not-allowed;">
                 </div>
@@ -229,18 +330,21 @@ function renderAddCustomer(container) {
     // Auto-calculate expiry
     const iIn = document.getElementById('install-date');
     const pSel = document.getElementById('plan-select');
+    const dSel = document.getElementById('duration-select');
     const eIn = document.getElementById('expiry-date');
 
-    [iIn, pSel].forEach(e => e.addEventListener('change', () => {
+    const updateCalculatedExpiry = () => {
         if (iIn.value) {
             const d = new Date(iIn.value);
-            // In a real app, you'd get validity from AppState.plans, but we'll stick to 30 as default
             const selectedPlan = window.AppState.plans.find(p => p.name === pSel.value);
             const validity = selectedPlan ? (selectedPlan.validity || 30) : 30;
-            d.setDate(d.getDate() + validity);
-            eIn.value = d.toISOString().split('T')[0];
+            const duration = parseInt(dSel.value) || 1;
+            d.setDate(d.getDate() + (validity * duration));
+            eIn.value = window.getLocalDateString ? window.getLocalDateString(d) : d.toISOString().split('T')[0];
         }
-    }));
+    };
+
+    [iIn, pSel, dSel].forEach(e => e.addEventListener('change', updateCalculatedExpiry));
 
     document.getElementById('add-customer-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -261,6 +365,8 @@ function renderAddCustomer(container) {
             amount: amount,
             id: (maxId + 1).toString(),
             status: 'Active',
+            paymentStatus: 'Paid',
+            dueMonths: 0,
             expiry: data.expiryDate || '',
             createdAt: new Date().toISOString()
         };
@@ -283,11 +389,12 @@ function viewCustomer(firestoreId) {
         showToast('Customer record not found', 'error');
         return;
     }
+    const displayStatus = getCustomerDisplayStatus(c);
     openModal(`
         <div style="padding: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 24px;">
                 <h3>Customer Details: #${c.id}</h3>
-                <span class="status-badge ${getStatusClass(c.status)}">${c.status}</span>
+                <span class="status-badge ${getStatusClass(displayStatus)}">${displayStatus}</span>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
                 <div>
@@ -333,15 +440,49 @@ function editCustomer(firestoreId) {
         return;
     }
     openModal(`
-        <div style="width: 500px; max-width: 95vw;">
+        <div style="width: 550px; max-width: 95vw;">
             <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 10px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--acn-orange);"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
                 Edit Customer: ${c.name}
             </h3>
             <form id="edit-customer-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                 <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Full Name</label>
+                    <input type="text" name="name" value="${c.name}" required class="glass-input">
+                </div>
+                <div class="form-group">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Phone Number</label>
                     <input type="tel" name="phone" value="${c.phone}" required class="glass-input">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Address</label>
+                    <input type="text" name="address" value="${c.address}" class="glass-input">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Router MAC</label>
+                    <input type="text" name="mac" value="${c.mac || ''}" placeholder="XX:XX:XX:XX:XX:XX" class="glass-input">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Installation Date</label>
+                    <input type="date" name="install" id="edit-install-date" value="${c.install || ''}" required class="glass-input">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Select Plan</label>
+                    <select id="edit-plan-select" name="plan" required class="glass-input">
+                        <option value="">Choose a plan</option>
+                        ${window.AppState.plans.map(p => {
+                            const isSelected = p.name === c.plan ? 'selected' : '';
+                            return `<option value="${p.name}" data-price="${p.price}" ${isSelected}>${p.name} - ₹${p.price}</option>`;
+                        }).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Plan Amount (₹)</label>
+                    <input type="number" name="amount" id="edit-amount" value="${c.amount ?? c.planPrice ?? c.price ?? 0}" placeholder="Enter amount" required class="glass-input">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Expiry Date</label>
+                    <input type="date" name="expiryDate" id="edit-expiry-date" value="${c.expiryDate || c.expiry || ''}" required class="glass-input">
                 </div>
                 <div class="form-group">
                     <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Status</label>
@@ -352,20 +493,8 @@ function editCustomer(firestoreId) {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Installation Date</label>
-                    <input type="date" name="install" id="edit-install-date" value="${c.install || ''}" required class="glass-input">
-                </div>
-                <div class="form-group">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Expiry Date</label>
-                    <input type="date" name="expiryDate" id="edit-expiry-date" value="${c.expiryDate}" required class="glass-input">
-                </div>
-                <div class="form-group">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Plan Amount (₹)</label>
-                    <input type="number" name="amount" value="${c.amount ?? c.planPrice ?? c.price ?? 0}" placeholder="Enter amount" required class="glass-input">
-                </div>
-                <div class="form-group" style="grid-column: span 2;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Address</label>
-                    <input type="text" name="address" value="${c.address}" class="glass-input">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 600;">Due Months</label>
+                    <input type="number" name="dueMonths" id="edit-due-months" value="${c.dueMonths || 0}" min="0" required class="glass-input">
                 </div>
                 <div id="edit-error" style="grid-column: span 2; color: #ef4444; font-size: 0.8rem; height: 1.2rem;"></div>
                 <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px;">
@@ -378,13 +507,23 @@ function editCustomer(firestoreId) {
 
     const iIn = document.getElementById('edit-install-date');
     const eIn = document.getElementById('edit-expiry-date');
+    const planSel = document.getElementById('edit-plan-select');
+    const amountIn = document.getElementById('edit-amount');
     const err = document.getElementById('edit-error');
+
+    // Auto-update price when plan changes
+    planSel.addEventListener('change', () => {
+        const option = planSel.options[planSel.selectedIndex];
+        if (option && option.dataset.price) {
+            amountIn.value = option.dataset.price;
+        }
+    });
 
     iIn.addEventListener('change', () => {
         if (iIn.value) {
             const d = new Date(iIn.value);
             d.setDate(d.getDate() + 30);
-            eIn.value = d.toISOString().split('T')[0];
+            eIn.value = window.getLocalDateString ? window.getLocalDateString(d) : d.toISOString().split('T')[0];
             err.textContent = '';
         }
     });
@@ -408,14 +547,20 @@ function editCustomer(firestoreId) {
         const fd = new FormData(e.target);
         const data = Object.fromEntries(fd.entries());
         data.amount = parseFloat(data.amount) || 0;
+        data.dueMonths = parseInt(data.dueMonths) || 0;
+        data.paymentStatus = data.dueMonths > 0 ? 'Due' : 'Paid';
+        data.expiry = data.expiryDate || '';
 
         // Auto Status Update Logic
-        const today = new Date().toISOString().split('T')[0];
-        if (data.expiryDate < today) {
-            data.status = 'Expired';
-        } else if (data.status === 'Expired') {
-            data.status = 'Active'; // Reactivate if date moved to future
+        const today = window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0];
+        if (data.status !== 'Suspended') {
+            if (data.expiryDate < today) {
+                data.status = 'Expired';
+            } else if (data.status === 'Expired') {
+                data.status = 'Active'; // Reactivate if date moved to future
+            }
         }
+
         const firestoreId = c.firestoreId;
         try {
             const customerRef = doc(db, "customers", firestoreId);
@@ -463,7 +608,7 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
     const customer = window.AppState.customers.find(c => c.firestoreId === firestoreId);
     if (!customer) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0];
 
     // Check for existing "Due" entry today to prevent duplicates
     const existingDue = window.AppState.payments.find(p =>
@@ -481,13 +626,15 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
         try {
             // Update customer record with paymentStatus
             await updateDoc(doc(db, "customers", firestoreId), {
-                paymentStatus: 'Due'
+                paymentStatus: 'Due',
+                dueMonths: 1
             });
 
             await addDoc(collection(db, "payments"), {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                 customer: customerName,
                 amount: customer.amount || 0,
+                months: 1,
                 date: today,
                 method: '-',
                 status: 'Due',
@@ -503,7 +650,8 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
         try {
             // Update customer record with paymentStatus
             await updateDoc(doc(db, "customers", firestoreId), {
-                paymentStatus: 'Paid'
+                paymentStatus: 'Paid',
+                dueMonths: 0
             });
 
             // Always create a new Paid entry as per instructions
@@ -511,6 +659,7 @@ async function togglePaymentStatus(customerName, firestoreId, newStatus) {
                 id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
                 customer: customerName,
                 amount: customer.amount || 0,
+                months: 1,
                 date: today,
                 method: '-',
                 status: 'Paid',
@@ -577,7 +726,14 @@ async function rechargeCustomer(firestoreId) {
                         <option value="1">1 Month</option>
                         <option value="2">2 Months</option>
                         <option value="3">3 Months</option>
+                        <option value="4">4 Months</option>
+                        <option value="5">5 Months</option>
                         <option value="6">6 Months</option>
+                        <option value="7">7 Months</option>
+                        <option value="8">8 Months</option>
+                        <option value="9">9 Months</option>
+                        <option value="10">10 Months</option>
+                        <option value="11">11 Months</option>
                         <option value="12">12 Months</option>
                     </select>
                 </div>
@@ -625,7 +781,7 @@ async function rechargeCustomer(firestoreId) {
 
         const calculatedExpiryDate = new Date(baseDate);
         calculatedExpiryDate.setDate(calculatedExpiryDate.getDate() + totalValidityDays);
-        const calculatedExpiryStr = calculatedExpiryDate.toISOString().split('T')[0];
+        const calculatedExpiryStr = window.getLocalDateString ? window.getLocalDateString(calculatedExpiryDate) : calculatedExpiryDate.toISOString().split('T')[0];
 
         priceDisplay.textContent = `₹${totalAmount.toLocaleString()}`;
         expiryDisplay.textContent = `${calculatedExpiryStr} (+${totalValidityDays} Days)`;
@@ -674,16 +830,22 @@ async function processRecharge(firestoreId, payStatus) {
 
         const newExpiryDate = new Date(baseDate);
         newExpiryDate.setDate(newExpiryDate.getDate() + totalValidityDays);
-        const newExpiryStr = newExpiryDate.toISOString().split('T')[0];
+        const newExpiryStr = window.getLocalDateString ? window.getLocalDateString(newExpiryDate) : newExpiryDate.toISOString().split('T')[0];
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0];
+
+        const isCurrentDue = c.paymentStatus === 'Due' || (currentExpiryStr && currentExpiryStr < todayStr);
+        const currentDues = isCurrentDue ? (parseInt(c.dueMonths) || 1) : 0;
+        const newDues = payStatus === 'Due' ? (currentDues + months) : currentDues;
+        const finalPaymentStatus = newDues > 0 ? 'Due' : 'Paid';
 
         // 1. Update customer doc
         await updateDoc(doc(db, "customers", firestoreId), {
             plan: planName,
             expiry: newExpiryStr,
             expiryDate: newExpiryStr,
-            paymentStatus: payStatus,
+            paymentStatus: finalPaymentStatus,
+            dueMonths: newDues,
             status: 'Active',
             amount: planPrice // Keep monthly price in the customer profile
         });
@@ -693,6 +855,7 @@ async function processRecharge(firestoreId, payStatus) {
             id: `RC-${Math.floor(Math.random() * 9000 + 1000)}`,
             customer: c.name,
             amount: totalAmount,
+            months: months,
             date: todayStr,
             method: payStatus === 'Paid' ? 'UPI' : '-',
             status: payStatus,
@@ -712,3 +875,133 @@ async function processRecharge(firestoreId, payStatus) {
 // Expose Recharge Globals
 window.rechargeCustomer = rechargeCustomer;
 window.processRecharge = processRecharge;
+
+// Export Customers to Excel
+function exportCustomersToExcel() {
+    try {
+        const todayStr = window.getLocalDateString ? window.getLocalDateString() : new Date().toISOString().split('T')[0];
+
+        // Determine which customers are currently visible/active in the table
+        const tableRows = document.querySelectorAll('#customer-data-table tbody tr[data-id]');
+        let customersToExport = [];
+        const baseList = window.AppState.currentCustomerList || window.AppState.customers || [];
+
+        if (tableRows && tableRows.length > 0) {
+            const visibleIds = new Set();
+            let anyFiltered = false;
+            tableRows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const id = row.getAttribute('data-id');
+                    if (id) visibleIds.add(id);
+                } else {
+                    anyFiltered = true;
+                }
+            });
+
+            if (anyFiltered) {
+                // If user searched/filtered rows, only export the visible ones
+                customersToExport = baseList.filter(c => visibleIds.has(String(c.id)));
+            } else {
+                customersToExport = [...baseList];
+            }
+        } else {
+            customersToExport = [...baseList];
+        }
+
+        if (!customersToExport || customersToExport.length === 0) {
+            showToast('No customer records to export', 'warning');
+            return;
+        }
+
+        const dataRows = customersToExport.map(c => {
+            const currentExpiry = c.expiryDate || c.expiry || '';
+            const days = window.getDaysLeft ? window.getDaysLeft(currentExpiry) : { text: '' };
+            const payStatus = c.paymentStatus || (currentExpiry && currentExpiry < todayStr ? 'Due' : 'Paid');
+            const displayStatus = window.getCustomerDisplayStatus ? window.getCustomerDisplayStatus(c) : (c.status || 'Active');
+            const dueMonths = payStatus === 'Due' ? (parseInt(c.dueMonths) || 1) : 0;
+            const planAmount = parseFloat(c.amount) || 0;
+            const totalDue = payStatus === 'Due' ? (planAmount * dueMonths) : 0;
+            const regDate = c.createdAt ? c.createdAt.split('T')[0] : (c.install || '');
+
+            return {
+                'Customer ID': c.id ? `#${c.id}` : '-',
+                'Full Name': c.name || '-',
+                'Phone Number': c.phone || '-',
+                'Address': c.address || '-',
+                'Router MAC': c.mac || '-',
+                'Installation Date': c.install || '-',
+                'Plan Name': c.plan || '-',
+                'Duration (Months)': parseInt(c.duration) || 1,
+                'Plan Price (₹)': planAmount,
+                'Expiry Date': currentExpiry || '-',
+                'Days Left': days.text || '-',
+                'Account Status': displayStatus || 'Active',
+                'Payment Status': payStatus,
+                'Due Months': dueMonths,
+                'Total Due Amount (₹)': totalDue,
+                'Registration Date': regDate || '-'
+            };
+        });
+
+        const rawTitle = window.AppState.currentCustomerTitle || 'Customers';
+        const cleanTitle = rawTitle.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        const fileName = `ACN_${cleanTitle}_${todayStr}.xlsx`;
+
+        if (window.XLSX) {
+            const ws = XLSX.utils.json_to_sheet(dataRows);
+            ws['!cols'] = [
+                { wch: 14 }, // Customer ID
+                { wch: 28 }, // Full Name
+                { wch: 16 }, // Phone Number
+                { wch: 34 }, // Address
+                { wch: 22 }, // Router MAC
+                { wch: 18 }, // Installation Date
+                { wch: 24 }, // Plan Name
+                { wch: 18 }, // Duration (Months)
+                { wch: 16 }, // Plan Price (₹)
+                { wch: 16 }, // Expiry Date
+                { wch: 16 }, // Days Left
+                { wch: 16 }, // Account Status
+                { wch: 16 }, // Payment Status
+                { wch: 14 }, // Due Months
+                { wch: 20 }, // Total Due Amount (₹)
+                { wch: 18 }  // Registration Date
+            ];
+            const wb = XLSX.utils.book_new();
+            const sheetName = cleanTitle.slice(0, 31) || 'Customers';
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            XLSX.writeFile(wb, fileName);
+            showToast(`Exported ${dataRows.length} customers to Excel successfully!`, 'success');
+        } else {
+            exportToCSV(dataRows, `ACN_${cleanTitle}_${todayStr}.csv`);
+            showToast(`Exported ${dataRows.length} customers to CSV successfully!`, 'success');
+        }
+    } catch (err) {
+        console.error('Export error:', err);
+        showToast('Failed to export customers: ' + err.message, 'error');
+    }
+}
+
+function exportToCSV(data, fileName) {
+    if (!data || !data.length) return;
+    const headers = Object.keys(data[0]);
+    const csvRows = [
+        headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',')
+    ];
+    for (const row of data) {
+        const values = headers.map(h => {
+            const val = row[h] !== undefined && row[h] !== null ? String(row[h]) : '';
+            return `"${val.replace(/"/g, '""')}"`;
+        });
+        csvRows.push(values.join(','));
+    }
+    const blob = new Blob(['\uFEFF' + csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
